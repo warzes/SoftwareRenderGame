@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="WinMain.cpp" />
+    <ClCompile Include="stdafx.cpp" />
+    <ClCompile Include="EngineCore.cpp">
+      <Filter>RetroEngine</Filter>
+    </ClCompile>
+    <ClCompile Include="GameApp.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="stdafx.h" />
+    <ClInclude Include="EngineBuild.h">
+      <Filter>RetroEngine</Filter>
+    </ClInclude>
+    <ClInclude Include="EngineCore.h">
+      <Filter>RetroEngine</Filter>
+    </ClInclude>
+    <ClInclude Include="GameApp.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="RetroEngine">
+      <UniqueIdentifier>{25c367a0-2e76-4356-bada-29c6bdac1de3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Game">
+      <UniqueIdentifier>{bfe75e79-a1c4-4743-8f63-03773ad7e521}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
