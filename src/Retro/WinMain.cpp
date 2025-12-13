@@ -15,16 +15,32 @@ BITMAPINFO g_bmi;
 
 int g_windowWidth = 1600;
 int g_windowHeight = 900;
-int g_frameWidth = 1600;
-int g_frameHeight = 900;
+int g_frameWidth = 0;
+int g_frameHeight = 480;
 unsigned* g_frameBuffer{ nullptr };
 float* g_depthBuffer{ nullptr };
+double* g_depthBufferX{ nullptr };
 
 LPARAM g_lastMousePos = 0;
 WPARAM g_lastMouseButtons = 0;
 BOOL g_mouseMoved = FALSE;
 
 bool keys[256] = { false };
+//=============================================================================
+void ResizeBuffer(int width, int height)
+{
+	float aspectRatio = (float)width / (float)height;
+	g_frameWidth = g_frameHeight * aspectRatio;
+
+	// Пересоздаем буферы
+	if (g_frameBuffer) delete[] g_frameBuffer;
+	if (g_depthBuffer) delete[] g_depthBuffer;
+	if (g_depthBufferX) delete[] g_depthBufferX;
+
+	g_frameBuffer = new unsigned[g_frameWidth * g_frameHeight];
+	g_depthBuffer = new float[g_frameWidth * g_frameHeight];
+	g_depthBufferX = new double[g_frameWidth];
+}
 //=============================================================================
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) noexcept
 {
@@ -48,9 +64,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			g_windowHeight = HIWORD(lParam);
 
 			float aspectRatio = (float)g_windowWidth / (float)g_windowHeight;
-
-			g_frameWidth = 480 * aspectRatio;
-			g_frameHeight = 480;
+			g_frameWidth = g_frameHeight * aspectRatio;
 
 			g_bmi.bmiHeader.biWidth = g_frameWidth;
 			g_bmi.bmiHeader.biHeight = -g_frameHeight;
@@ -64,9 +78,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 				// Пересоздаем буферы
 				if (g_frameBuffer) delete[] g_frameBuffer;
 				if (g_depthBuffer) delete[] g_depthBuffer;
+				if (g_depthBufferX) delete[] g_depthBufferX;
 
 				g_frameBuffer = new unsigned[g_frameWidth * g_frameHeight];
 				g_depthBuffer = new float[g_frameWidth * g_frameHeight];
+				g_depthBufferX = new double[g_frameWidth];
 			}
 		}
 		return 0;
@@ -119,7 +135,7 @@ bool CreateMainWindow(HINSTANCE hInstance)
 {
 	MyRegisterClass(hInstance);
 
-	DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+	DWORD style = WS_OVERLAPPEDWINDOW;
 	RECT rect = { 0, 0, g_windowWidth, g_windowHeight };
 	AdjustWindowRect(&rect, style, FALSE);
 
@@ -133,9 +149,7 @@ bool CreateMainWindow(HINSTANCE hInstance)
 	}
 
 	float aspectRatio = (float)g_windowWidth / (float)g_windowHeight;
-
-	g_frameWidth = 480 * aspectRatio;
-	g_frameHeight = 480;
+	g_frameWidth = g_frameHeight * aspectRatio;
 
 	g_hdc = GetDC(g_hwnd);
 	g_memDC = CreateCompatibleDC(g_hdc);
@@ -166,17 +180,17 @@ void winAPIPresent()
 {
 	//SetDIBitsToDevice(
 	//	g_memDC,
-	//	0, 0, (DWORD)g_frameWidth, (DWORD)g_frameHeight,
-	//	0, 0, 0, (UINT)g_frameHeight,
+	//	0, 0, (DWORD)g_windowWidth, (DWORD)g_windowHeight,
+	//	0, 0, 0, (UINT)g_windowHeight,
 	//	g_frameBuffer,
 	//	&g_bmi,
 	//	DIB_RGB_COLORS
 	//);
 
-	//BitBlt(g_hdc, 0, 0, g_frameWidth, g_frameHeight, g_memDC, 0, 0, SRCCOPY);
+	//BitBlt(g_hdc, 0, 0, g_windowWidth, g_windowHeight, g_memDC, 0, 0, SRCCOPY);
 
-	StretchDIBits(g_hdc, 
-		10, 10, g_windowWidth - 20, g_windowHeight-20, 
+	StretchDIBits(g_hdc,
+		0, 0, g_windowWidth, g_windowHeight, 
 		0, 0, g_frameWidth, g_frameHeight, 
 		g_frameBuffer, &g_bmi, DIB_RGB_COLORS, SRCCOPY);
 }
@@ -247,8 +261,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	if (!CreateMainWindow(hInstance))
 		return 0;
 
-	g_frameBuffer = new unsigned[g_frameWidth * g_frameHeight];
-	g_depthBuffer = new float[g_frameWidth * g_frameHeight];
+	ResizeBuffer(g_windowWidth, g_windowHeight);
 
 	if (!InitGame())
 		return 0;
