@@ -3,52 +3,13 @@
 #include "Engine.h"
 #include "Temp.h"
 //=============================================================================
-extern int g_frameWidth;
-extern int g_frameHeight;
-extern unsigned* g_frameBuffer;
-extern float* g_depthBuffer;
-extern double* g_depthBufferX;
-extern bool keys[256];
-
-
-unsigned GetPixel(int x, int y)
-{
-	if (x < 0 || x >= g_frameWidth || y < 0 || y >= g_frameHeight) return 0;
-	return g_frameBuffer[y * g_frameWidth + x];
-}
-
-void SetPixel(int x, int y, unsigned color)
-{
-	if (x < 0 || x >= g_frameWidth || y < 0 || y >= g_frameHeight) return;
-	g_frameBuffer[y * g_frameWidth + x] = color;
-}
-
 double posX = 22.0, posY = 11.5; //x and y start position
 double dirX = -1.0, dirY = 0.0; //initial direction vector
 double planeX = 0.0, planeY = 0.66; //the 2d raycaster version of camera plane
-double doorTime = 0;
-
 double lookVert = 0;
-
 double eyePos = 0;
 
-// lookVert should have values between -LOOK_UP_MAX and LOOK_UP_MAX
-#define LOOK_UP_MAX 128
-
-
-#define texWidth 32 // must be power of two
-#define texHeight 32 // must be power of two
-#define mapWidth 24
-#define mapHeight 24
-
-#define SKYBOX 1
-#define SKYBOX_WIDTH    320
-#define SKYBOX_HEIGHT   200
-#define SKYBOX_REPEATS  4
-
-#define FOG_LEVEL 2
-#define FOG_COLOR 0xA09EE7
-#define FOG_CONSTANT ((mapWidth + mapHeight)/2)
+double doorTime = 0;
 
 std::vector<unsigned> texture[23];
 #if SKYBOX
@@ -89,8 +50,6 @@ struct Sprite
 	double y;
 	int texture;
 };
-
-#define numSprites 23
 
 Sprite sprite[numSprites] =
 {
@@ -327,15 +286,15 @@ struct Strip
 void drawStrip(Strip& strip)
 {
 	// Draw the vertical strip
-	int texY = 0, c = 0;
+	int texY = 0, texCounter = 0;
 	int dy = strip.drawEnd - strip.drawStart;
 
 	if (strip.drawStart < 0) {
-		c = -strip.drawStart * texHeight;
-		if (c > dy) {
-			div_t res = div(c, dy);
+		texCounter = -strip.drawStart * texHeight;
+		if (texCounter > dy) {
+			div_t res = div(texCounter, dy);
 			texY += res.quot;
-			c = res.rem;
+			texCounter = res.rem;
 		}
 		strip.drawStart = 0;
 	}
@@ -360,10 +319,10 @@ void drawStrip(Strip& strip)
 			SetPixel(strip.x, y, color);
 		}
 
-		c += texHeight;
-		while (c > dy) {
+		texCounter += texHeight;
+		while (texCounter > dy) {
 			texY++;
-			c -= dy;
+			texCounter -= dy;
 		}
 	}
 }
@@ -381,13 +340,13 @@ struct SpritePrepare
 
 bool prepsSort(SpritePrepare& i, SpritePrepare& j) { return (i.transformY < j.transformY); }
 
-std::vector<SpritePrepare> preps;
+std::vector<SpritePrepare> spritePrep;
 
 //SPRITE CASTING
 void prepareSprites()
 {
 
-	preps.clear();
+	spritePrep.clear();
 
 	SpritePrepare prep;
 
@@ -468,11 +427,11 @@ void prepareSprites()
 #endif
 
 		prep.texNum = sprite[i].texture;
-		preps.push_back(prep);
+		spritePrep.push_back(prep);
 	}
 
 	//sort sprites from far to close
-	std::sort(preps.begin(), preps.end(), prepsSort);
+	std::sort(spritePrep.begin(), spritePrep.end(), prepsSort);
 }
 
 void drawSpriteStrip(SpritePrepare& prep, int stripe)
@@ -533,6 +492,12 @@ struct intersect wallIntersect(double W0x, double W0y, double W1x, double W1y,
 	return i;
 }
 
+// Helper prototypes
+void RenderSkybox(int w, int h);
+void RenderFloor(int w, int h);
+void RenderCeiling(int w, int h);
+void RenderWalls(int w, int h);
+
 //=============================================================================
 bool InitGame()
 {
@@ -590,166 +555,16 @@ void FrameGame()
 		g_depthBuffer[i] = 10000.0f; // Бесконечность
 	}
 
+	// Draw skybox and ceiling/floor via helper functions
 #if SKYBOX
-	{
-		int texX;
-		double rayDirX0 = dirX - planeX;
-		double rayDirY0 = dirY - planeY;
-		double rayDirX1 = dirX + planeX;
-		double rayDirY1 = dirY + planeY;
-
-		int texX0 = (int)(-atan2(rayDirY0, rayDirX0) * (double)SKYBOX_WIDTH / (2 * M_PI) * SKYBOX_REPEATS);
-		int texX1 = (int)(-atan2(rayDirY1, rayDirX1) * (double)SKYBOX_WIDTH / (2 * M_PI) * SKYBOX_REPEATS);
-		while (texX1 < texX0)
-			texX1 += SKYBOX_WIDTH;
-		while (texX0 < 0) {
-			texX0 += SKYBOX_WIDTH;
-			texX1 += SKYBOX_WIDTH;
-		}
-
-		int dtexX = texX1 - texX0;
-		int dy = h / 2 + lookVert;
-		int dtexY = SKYBOX_HEIGHT * (h / 2 + lookVert) / (h / 2 + LOOK_UP_MAX) - 1;
-		int texY0 = SKYBOX_HEIGHT - 1 - dtexY;
-
-		for (int x = 0, cX = 0; x < w; x++) {
-
-			if (texX0 >= SKYBOX_WIDTH) {
-				texX = texX0 - SKYBOX_WIDTH;
-			}
-			else
-				texX = texX0;
-
-			for (int y = 0, texY = texY0, cY = 0; y < dy; y++) {
-
-				unsigned color = skybox[SKYBOX_WIDTH * texY + texX];
-				SetPixel(x, y, color);
-
-				cY = cY + dtexY;
-				while (cY > dy) {
-					texY = texY + 1;
-					cY = cY - dy;
-				}
-			}
-
-			cX = cX + dtexX;
-			while (cX > w) {
-				texX0 = texX0 + 1;
-				cX = cX - w;
-			}
-		}
-	}
+	RenderSkybox(w, h);
 #endif
 
-	//FLOOR CASTING
-	for (int y = g_frameHeight / 2 + lookVert + 1, p = 1; y < g_frameHeight; ++y, ++p)
-	{
-		// rayDir for leftmost ray (x = 0) and rightmost ray (x = w)
-		float rayDirX0 = dirX - planeX;
-		float rayDirY0 = dirY - planeY;
-		float rayDirX1 = dirX + planeX;
-		float rayDirY1 = dirY + planeY;
-
-		// Vertical position of the camera.
-		float posZ = 0.5 * g_frameHeight;
-
-		// Horizontal distance from the camera to the floor for the current row.
-		// 0.5 is the z position exactly in the middle between floor and ceiling.
-		float rowDistance = (posZ + eyePos) / p;
-
-		// calculate the real world step vector we have to add for each x (parallel to camera plane)
-		// adding step by step avoids multiplications with a weight in the inner loop
-		float floorStepX = rowDistance * (rayDirX1 - rayDirX0) / g_frameWidth;
-		float floorStepY = rowDistance * (rayDirY1 - rayDirY0) / g_frameWidth;
-
-		// real world coordinates of the leftmost column. This will be updated as we step to the right.
-		float floorX = posX + rowDistance * rayDirX0;
-		float floorY = posY + rowDistance * rayDirY0;
-
-#if FOG_LEVEL
-		double fog = rowDistance / FOG_CONSTANT * FOG_LEVEL;
-#endif
-
-		for (int x = 0; x < g_frameWidth; ++x)
-		{
-			// the cell coord is simply got from the integer parts of floorX and floorY
-			int cellX = (int)(floorX);
-			int cellY = (int)(floorY);
-
-			// get the texture coordinate from the fractional part
-			int tx = (int)(texWidth * (floorX - cellX)) & (texWidth - 1);
-			int ty = (int)(texHeight * (floorY - cellY)) & (texHeight - 1);
-
-			floorX += floorStepX;
-			floorY += floorStepY;
-
-			// choose texture and draw the pixel
-			int checkerBoardPattern = (int(cellX + cellY)) & 1;
-			int floorTexture;
-			if (checkerBoardPattern == 0) floorTexture = 3;
-			else floorTexture = 4;
-
-			unsigned color = texture[floorTexture][texWidth * ty + tx];
-			color = (color >> 1) & 8355711; // make a bit darker
-#if FOG_LEVEL
-			color = color_lerp(color, FOG_COLOR, fog);
-#endif
-			SetPixel(x, y, color);
-		}
-	}
+	// Render floor and ceiling by helper functions
+	RenderFloor(w, h);
 
 #if !SKYBOX
-	//CEILING CASTING
-	for (int y = g_frameHeight / 2 + lookVert + 1, p = 1; y >= 0; y--, ++p)
-	{
-		// rayDir for leftmost ray (x = 0) and rightmost ray (x = w)
-		float rayDirX0 = dirX - planeX;
-		float rayDirY0 = dirY - planeY;
-		float rayDirX1 = dirX + planeX;
-		float rayDirY1 = dirY + planeY;
-
-		// Vertical position of the camera.
-		float posZ = 0.5 * g_frameHeight;
-
-		// Horizontal distance from the camera to the floor for the current row.
-		// 0.5 is the z position exactly in the middle between floor and ceiling.
-		float rowDistance = (posZ - eyePos) / p;
-
-		// calculate the real world step vector we have to add for each x (parallel to camera plane)
-		// adding step by step avoids multiplications with a weight in the inner loop
-		float floorStepX = rowDistance * (rayDirX1 - rayDirX0) / g_frameWidth;
-		float floorStepY = rowDistance * (rayDirY1 - rayDirY0) / g_frameWidth;
-
-		// real world coordinates of the leftmost column. This will be updated as we step to the right.
-		float floorX = posX + rowDistance * rayDirX0;
-		float floorY = posY + rowDistance * rayDirY0;
-
-#if FOG_LEVEL
-		double fog = rowDistance / FOG_CONSTANT * FOG_LEVEL;
-#endif
-		for (int x = 0; x < g_frameWidth; ++x)
-		{
-			// the cell coord is simply got from the integer parts of floorX and floorY
-			int cellX = (int)(floorX);
-			int cellY = (int)(floorY);
-
-			// get the texture coordinate from the fractional part
-			int tx = (int)(texWidth * (floorX - cellX)) & (texWidth - 1);
-			int ty = (int)(texHeight * (floorY - cellY)) & (texHeight - 1);
-
-			floorX += floorStepX;
-			floorY += floorStepY;
-
-			// choose texture and draw the pixel
-			int ceilingTexture = 6;
-			Uint32 color = texture[ceilingTexture][texWidth * ty + tx];
-			color = (color >> 1) & 8355711; // make a bit darker
-#if FOG_LEVEL
-			color = color_lerp(color, FOG_COLOR, fog);
-#endif
-			SetPixel(x, y, color);
-		}
-	}
+	RenderCeiling(w, h);
 #endif
 
 	prepareSprites();
@@ -768,7 +583,287 @@ void FrameGame()
 			playerDirection = dir_N;
 	}
 
-	// WALL CASTING
+	// Wall casting and sprite blending
+	RenderWalls(w, h);
+		
+	doorTime += 0.016;
+	if (doorTime > 1.0 / texWidth) {
+		updateMap();
+		doorTime -= 1.0 / texWidth;
+	}
+
+	//speed modifiers
+	double moveSpeed = 0.016 * 5.0; //the constant value is in squares/second
+	double rotSpeed = 0.016 * 3.0; //the constant value is in radians/second
+
+	//move forward if no wall in front of you
+	if (keys['W'])
+	{
+		if (canPass(int(posX + dirX * moveSpeed), int(posY))) posX += dirX * moveSpeed;
+		if (canPass(int(posX), int(posY + dirY * moveSpeed))) posY += dirY * moveSpeed;
+	}
+	//move backwards if no wall behind you
+	if (keys['S'])
+	{
+		if (canPass(int(posX - dirX * moveSpeed), int(posY))) posX -= dirX * moveSpeed;
+		if (canPass(int(posX), int(posY - dirY * moveSpeed))) posY -= dirY * moveSpeed;
+	}
+	//rotate to the right
+	if (keys['D'])
+	{
+		//both camera direction and camera plane must be rotated
+		double oldDirX = dirX;
+		dirX = dirX * cos(-rotSpeed) - dirY * sin(-rotSpeed);
+		dirY = oldDirX * sin(-rotSpeed) + dirY * cos(-rotSpeed);
+		double oldPlaneX = planeX;
+		planeX = planeX * cos(-rotSpeed) - planeY * sin(-rotSpeed);
+		planeY = oldPlaneX * sin(-rotSpeed) + planeY * cos(-rotSpeed);
+	}
+	//rotate to the left
+	if (keys['A'])
+	{
+		//both camera direction and camera plane must be rotated
+		double oldDirX = dirX;
+		dirX = dirX * cos(rotSpeed) - dirY * sin(rotSpeed);
+		dirY = oldDirX * sin(rotSpeed) + dirY * cos(rotSpeed);
+		double oldPlaneX = planeX;
+		planeX = planeX * cos(rotSpeed) - planeY * sin(rotSpeed);
+		planeY = oldPlaneX * sin(rotSpeed) + planeY * cos(rotSpeed);
+	}
+	if (keys[VK_SPACE])
+	{
+		int faceX = int(posX + dirX);
+		int faceY = int(posY + dirY);
+		Door* door = findDoor(faceX, faceY);
+		if (door) {
+			switch (door->state) {
+			case closed: door->state = opening; break;
+			case open: door->state = closing; break;
+			default: break;
+			}
+		}
+		else {
+			PushWall* pw = findPushWall(faceX, faceY);
+			if (pw && pw->state == closed && wallCanMove(pw, playerDirection)) {
+				pw->direction = playerDirection;
+				pw->state = opening;
+			}
+			else if (worldMap[faceX][faceY] == 12) {
+				worldMap[faceX][faceY] = 13;
+			}
+		}
+	}
+	if (keys['Q'])
+	{
+		if (lookVert < LOOK_UP_MAX) {
+			lookVert += 0.016 * 600;
+			if (lookVert > LOOK_UP_MAX)
+				lookVert = LOOK_UP_MAX;
+		}
+	}
+	else if (keys['E'])
+	{
+		if (lookVert > -LOOK_UP_MAX) {
+			lookVert -= 0.016 * 600;
+			if (lookVert < -LOOK_UP_MAX)
+				lookVert = -LOOK_UP_MAX;
+		}
+	}
+	else
+	{
+		if (lookVert > 0) {
+			lookVert -= 0.016 * 400;
+			if (lookVert < 0)
+				lookVert = 0;
+		}
+		else if (lookVert < 0) {
+			lookVert += 0.016 * 400;
+			if (lookVert > 0)
+				lookVert = 0;
+		}
+	}
+	if (keys['X'])
+	{
+		if (eyePos == 0)
+			eyePos = 128;
+	}
+	else if (keys['C'])
+	{
+		if (eyePos <= 0 && eyePos > -128)
+		{
+			eyePos -= 0.016 * 400;
+			if (eyePos < -128) {
+				eyePos = -128;
+			}
+		}
+	}
+	else {
+		if (eyePos < 0) {
+			eyePos += 0.016 * 400;
+			if (eyePos > 0) {
+				eyePos = 0;
+			}
+		}
+	}
+	if (eyePos > 0) {
+		eyePos -= 0.016 * 400;
+		if (eyePos < 0) {
+			eyePos = 0;
+		}
+	}
+}
+
+//=============================================================================
+
+//=============================================================================
+// Helper rendering functions
+//=============================================================================
+#if SKYBOX
+void RenderSkybox(int w, int h)
+{
+	int texX;
+	double rayDirX0 = dirX - planeX;
+	double rayDirY0 = dirY - planeY;
+	double rayDirX1 = dirX + planeX;
+	double rayDirY1 = dirY + planeY;
+
+	int texX0 = (int)(-atan2(rayDirY0, rayDirX0) * (double)SKYBOX_WIDTH / (2 * M_PI) * SKYBOX_REPEATS);
+	int texX1 = (int)(-atan2(rayDirY1, rayDirX1) * (double)SKYBOX_WIDTH / (2 * M_PI) * SKYBOX_REPEATS);
+	while (texX1 < texX0)
+		texX1 += SKYBOX_WIDTH;
+	while (texX0 < 0) {
+		texX0 += SKYBOX_WIDTH;
+		texX1 += SKYBOX_WIDTH;
+	}
+
+	int dtexX = texX1 - texX0;
+	int dy = h / 2 + lookVert;
+	int dtexY = SKYBOX_HEIGHT * (h / 2 + lookVert) / (h / 2 + LOOK_UP_MAX) - 1;
+	int texY0 = SKYBOX_HEIGHT - 1 - dtexY;
+
+	for (int x = 0, cX = 0; x < w; x++) {
+
+		if (texX0 >= SKYBOX_WIDTH) {
+			texX = texX0 - SKYBOX_WIDTH;
+		}
+		else
+			texX = texX0;
+
+		for (int y = 0, texY = texY0, cY = 0; y < dy; y++) {
+
+			unsigned color = skybox[SKYBOX_WIDTH * texY + texX];
+			SetPixel(x, y, color);
+
+			cY = cY + dtexY;
+			while (cY > dy) {
+				texY = texY + 1;
+				cY = cY - dy;
+			}
+		}
+
+		cX = cX + dtexX;
+		while (cX > w) {
+			texX0 = texX0 + 1;
+			cX = cX - w;
+		}
+	}
+}
+#endif
+
+// Renders the floor texture using floor casting
+void RenderFloor(int w, int h)
+{
+	for (int y = g_frameHeight / 2 + lookVert + 1, p = 1; y < g_frameHeight; ++y, ++p)
+	{
+		float rayDirX0 = dirX - planeX;
+		float rayDirY0 = dirY - planeY;
+		float rayDirX1 = dirX + planeX;
+		float rayDirY1 = dirY + planeY;
+
+		float posZ = 0.5 * g_frameHeight;
+		float rowDistance = (posZ + eyePos) / p;
+
+		float floorStepX = rowDistance * (rayDirX1 - rayDirX0) / g_frameWidth;
+		float floorStepY = rowDistance * (rayDirY1 - rayDirY0) / g_frameWidth;
+
+		float floorX = posX + rowDistance * rayDirX0;
+		float floorY = posY + rowDistance * rayDirY0;
+
+#if FOG_LEVEL
+		double fog = rowDistance / FOG_CONSTANT * FOG_LEVEL;
+#endif
+
+		for (int x = 0; x < g_frameWidth; ++x)
+		{
+			int cellX = (int)(floorX);
+			int cellY = (int)(floorY);
+
+			int tx = (int)(texWidth * (floorX - cellX)) & (texWidth - 1);
+			int ty = (int)(texHeight * (floorY - cellY)) & (texHeight - 1);
+
+			floorX += floorStepX;
+			floorY += floorStepY;
+
+			int checkerBoardPattern = (int(cellX + cellY)) & 1;
+			int floorTexture = (checkerBoardPattern == 0) ? 3 : 4;
+
+			unsigned color = texture[floorTexture][texWidth * ty + tx];
+			color = (color >> 1) & 8355711;
+#if FOG_LEVEL
+			color = color_lerp(color, FOG_COLOR, fog);
+#endif
+			SetPixel(x, y, color);
+		}
+	}
+}
+
+// Renders the ceiling texture when skybox is disabled
+void RenderCeiling(int w, int h)
+{
+	for (int y = g_frameHeight / 2 + lookVert + 1, p = 1; y >= 0; y--, ++p)
+	{
+		float rayDirX0 = dirX - planeX;
+		float rayDirY0 = dirY - planeY;
+		float rayDirX1 = dirX + planeX;
+		float rayDirY1 = dirY + planeY;
+
+		float posZ = 0.5 * g_frameHeight;
+		float rowDistance = (posZ - eyePos) / p;
+
+		float floorStepX = rowDistance * (rayDirX1 - rayDirX0) / g_frameWidth;
+		float floorStepY = rowDistance * (rayDirY1 - rayDirY0) / g_frameWidth;
+
+		float floorX = posX + rowDistance * rayDirX0;
+		float floorY = posY + rowDistance * rayDirY0;
+
+#if FOG_LEVEL
+		double fog = rowDistance / FOG_CONSTANT * FOG_LEVEL;
+#endif
+		for (int x = 0; x < g_frameWidth; ++x)
+		{
+			int cellX = (int)(floorX);
+			int cellY = (int)(floorY);
+
+			int tx = (int)(texWidth * (floorX - cellX)) & (texWidth - 1);
+			int ty = (int)(texHeight * (floorY - cellY)) & (texHeight - 1);
+
+			floorX += floorStepX;
+			floorY += floorStepY;
+
+			int ceilingTexture = 6;
+			unsigned color = texture[ceilingTexture][texWidth * ty + tx];
+			color = (color >> 1) & 8355711;
+#if FOG_LEVEL
+			color = color_lerp(color, FOG_COLOR, fog);
+#endif
+			SetPixel(x, y, color);
+		}
+	}
+}
+
+// Renders walls and blended sprites per column
+void RenderWalls(int w, int h)
+{
 	std::stack<Strip> stack;
 	for (int x = 0; x < w; x++)
 	{
@@ -910,26 +1005,21 @@ void FrameGame()
 			side = 3;
 		}
 		else {
-			//Calculate distance of perpendicular ray (Euclidean distance would give fisheye effect!)
 			if (side == 0) perpWallDist = (sideDistX - deltaDistX);
 			else          perpWallDist = (sideDistY - deltaDistY);
 		}
 
-		//Calculate height of line to draw on screen
 		int lineHeight = (int)(h / perpWallDist);
 
-		//calculate lowest and highest pixel to fill in current stripe
 		int drawStart = -lineHeight / 2 + h / 2 + lookVert + eyePos / perpWallDist;
 		int drawEnd = lineHeight / 2 + h / 2 + lookVert + eyePos / perpWallDist;
 
 		if (!diag) {
-			//calculate value of wallX
 			if (side == 0) wallX = posY + perpWallDist * rayDirY;
 			else           wallX = posX + perpWallDist * rayDirX;
 			wallX -= floor((wallX));
 		}
 
-		//x coordinate on the texture
 		int texX = int(wallX * double(texWidth));
 
 		if (door) {
@@ -947,10 +1037,8 @@ void FrameGame()
 		double fog = perpWallDist / FOG_CONSTANT * FOG_LEVEL;
 #endif
 
-		Strip strip = {
-		  x, drawStart, drawEnd, perpWallDist, texture[texNum], texX, fog, side,
-		  texNum == 11 || texNum == 12
-		};
+		Strip strip = { x, drawStart, drawEnd, perpWallDist, texture[texNum], texX, fog, side,
+		  texNum == 11 || texNum == 12 };
 		stack.push(strip);
 
 		if (texNum == 9 || texNum == 10 || texNum == 11 || texNum == 12) {
@@ -958,156 +1046,23 @@ void FrameGame()
 			goto rayscan;
 		}
 
-		// Tracks the furthest sprite we haven't drawn yet
-		int farSprite = preps.size() - 1;
+		int farSprite = spritePrep.size() - 1;
 
-		// Skip sprites behind the furthest wall
-		// note perpWallDist == stack.top().perpWallDist
-		while (farSprite >= 0 && preps[farSprite].transformY > perpWallDist)
+		while (farSprite >= 0 && spritePrep[farSprite].transformY > perpWallDist)
 			farSprite--;
 
 		while (!stack.empty()) {
 			Strip& strip = stack.top();
 
-			// Draw any sprites behind the wall strip we're currently drawing
-			while (farSprite >= 0 && preps[farSprite].transformY > strip.perpWallDist) {
-				drawSpriteStrip(preps[farSprite--], x);
+			while (farSprite >= 0 && spritePrep[farSprite].transformY > strip.perpWallDist) {
+				drawSpriteStrip(spritePrep[farSprite--], x);
 			}
 
-			// Now draw the strip itself
 			drawStrip(strip);
 			stack.pop();
 		}
-		// Draw sprites in front of the nearest wall:
+
 		while (farSprite >= 0)
-			drawSpriteStrip(preps[farSprite--], x);
-	}
-
-	doorTime += 0.016;
-	if (doorTime > 1.0 / texWidth) {
-		updateMap();
-		doorTime -= 1.0 / texWidth;
-	}
-
-	//speed modifiers
-	double moveSpeed = 0.016 * 5.0; //the constant value is in squares/second
-	double rotSpeed = 0.016 * 3.0; //the constant value is in radians/second
-
-	//move forward if no wall in front of you
-	if (keys['W'])
-	{
-		if (canPass(int(posX + dirX * moveSpeed), int(posY))) posX += dirX * moveSpeed;
-		if (canPass(int(posX), int(posY + dirY * moveSpeed))) posY += dirY * moveSpeed;
-	}
-	//move backwards if no wall behind you
-	if (keys['S'])
-	{
-		if (canPass(int(posX - dirX * moveSpeed), int(posY))) posX -= dirX * moveSpeed;
-		if (canPass(int(posX), int(posY - dirY * moveSpeed))) posY -= dirY * moveSpeed;
-	}
-	//rotate to the right
-	if (keys['D'])
-	{
-		//both camera direction and camera plane must be rotated
-		double oldDirX = dirX;
-		dirX = dirX * cos(-rotSpeed) - dirY * sin(-rotSpeed);
-		dirY = oldDirX * sin(-rotSpeed) + dirY * cos(-rotSpeed);
-		double oldPlaneX = planeX;
-		planeX = planeX * cos(-rotSpeed) - planeY * sin(-rotSpeed);
-		planeY = oldPlaneX * sin(-rotSpeed) + planeY * cos(-rotSpeed);
-	}
-	//rotate to the left
-	if (keys['A'])
-	{
-		//both camera direction and camera plane must be rotated
-		double oldDirX = dirX;
-		dirX = dirX * cos(rotSpeed) - dirY * sin(rotSpeed);
-		dirY = oldDirX * sin(rotSpeed) + dirY * cos(rotSpeed);
-		double oldPlaneX = planeX;
-		planeX = planeX * cos(rotSpeed) - planeY * sin(rotSpeed);
-		planeY = oldPlaneX * sin(rotSpeed) + planeY * cos(rotSpeed);
-	}
-	if (keys[VK_SPACE])
-	{
-		int faceX = int(posX + dirX);
-		int faceY = int(posY + dirY);
-		Door* door = findDoor(faceX, faceY);
-		if (door) {
-			switch (door->state) {
-			case closed: door->state = opening; break;
-			case open: door->state = closing; break;
-			default: break;
-			}
-		}
-		else {
-			PushWall* pw = findPushWall(faceX, faceY);
-			if (pw && pw->state == closed && wallCanMove(pw, playerDirection)) {
-				pw->direction = playerDirection;
-				pw->state = opening;
-			}
-			else if (worldMap[faceX][faceY] == 12) {
-				worldMap[faceX][faceY] = 13;
-			}
-		}
-	}
-	if (keys['Q'])
-	{
-		if (lookVert < LOOK_UP_MAX) {
-			lookVert += 0.016 * 600;
-			if (lookVert > LOOK_UP_MAX)
-				lookVert = LOOK_UP_MAX;
-		}
-	}
-	else if (keys['E'])
-	{
-		if (lookVert > -LOOK_UP_MAX) {
-			lookVert -= 0.016 * 600;
-			if (lookVert < -LOOK_UP_MAX)
-				lookVert = -LOOK_UP_MAX;
-		}
-	}
-	else
-	{
-		if (lookVert > 0) {
-			lookVert -= 0.016 * 400;
-			if (lookVert < 0)
-				lookVert = 0;
-		}
-		else if (lookVert < 0) {
-			lookVert += 0.016 * 400;
-			if (lookVert > 0)
-				lookVert = 0;
-		}
-	}
-	if (keys['X'])
-	{
-		if (eyePos == 0)
-			eyePos = 128;
-	}
-	else if (keys['C'])
-	{
-		if (eyePos <= 0 && eyePos > -128)
-		{
-			eyePos -= 0.016 * 400;
-			if (eyePos < -128) {
-				eyePos = -128;
-			}
-		}
-	}
-	else {
-		if (eyePos < 0) {
-			eyePos += 0.016 * 400;
-			if (eyePos > 0) {
-				eyePos = 0;
-			}
-		}
-	}
-	if (eyePos > 0) {
-		eyePos -= 0.016 * 400;
-		if (eyePos < 0) {
-			eyePos = 0;
-		}
+			drawSpriteStrip(spritePrep[farSprite--], x);
 	}
 }
-
-//=============================================================================

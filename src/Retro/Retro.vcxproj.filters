@@ -33,6 +33,9 @@
     <ClInclude Include="Temp.h">
       <Filter>RetroEngine</Filter>
     </ClInclude>
+    <ClInclude Include="GameConstant.h">
+      <Filter>Game</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="RetroEngine">
