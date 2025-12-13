@@ -861,15 +861,6 @@ void RenderCeiling(int w, int h)
 			floorX += floorStepX;
 			floorY += floorStepY;
 
-#if 0
-			int ceilingTexture = 6;
-			unsigned color = texture[ceilingTexture][texWidth * ty + tx];
-			color = (color >> 1) & 8355711;
-#if FOG_LEVEL
-			color = ColorLerp(color, FOG_COLOR, fog);
-#endif
-			SetPixel(x, y, color);
-#else
 			// Use ceilingMap to determine which ceiling type to use
 			if (cellX >= 0 && cellX < mapWidth && cellY >= 0 && cellY < mapHeight)
 			{
@@ -887,7 +878,6 @@ void RenderCeiling(int w, int h)
 					SetPixel(x, y, color);
 				}
 			}
-#endif
 		}
 	}
 }
