@@ -20,6 +20,24 @@ void RenderFloor(int w, int h);
 void RenderCeiling(int w, int h);
 void RenderWalls(int w, int h);
 
+// Wall height and type definitions
+enum WallType
+{
+	WALL_SOLID = 0,        // Solid wall from floor to ceiling
+	WALL_SHORT,            // Short wall (e.g., half-height)
+	WALL_TALL,             // Tall wall (e.g., double-height)
+	WALL_SLOPE_BOTTOM,     // Wall with sloped bottom (ramp up)
+	WALL_SLOPE_TOP,        // Wall with sloped top (ramp down)
+	WALL_WINDOW,           // Wall with window section (transparent middle)
+	WALL_TRANSITION_UP,    // Vertical transition going up
+	WALL_TRANSITION_DOWN,  // Vertical transition going down
+	WALL_COUNT
+};
+
+// Wall height and type arrays
+extern double wallHeights[mapWidth][mapHeight]; // Height of each wall tile
+extern int wallTypes[mapWidth][mapHeight]; // Type of each wall tile (values correspond to WallType enum)
+
 struct Sprite
 {
 	double x;
@@ -62,6 +80,7 @@ struct Strip
 	double fog;
 	int side;
 	bool seeThrough;
+	double adjacentHeight; // Height of adjacent wall for transition effects
 };
 
 struct intersect

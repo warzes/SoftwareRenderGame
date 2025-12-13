@@ -26,19 +26,21 @@ enum Direction { dir_N, dir_S, dir_E, dir_W };
 #define MAX_PUSH_WALLS 20
 
 // Floor and ceiling tile types
-enum FloorTileType {
-    FLOOR_TILE_DEFAULT = 0,
-    FLOOR_TILE_1,
-    FLOOR_TILE_2,
-    FLOOR_TILE_3,
-    FLOOR_TILE_4,
-    FLOOR_TILE_5,
-    FLOOR_TILE_COUNT
+enum FloorTileType
+{
+	FLOOR_TILE_DEFAULT = 0,
+	FLOOR_TILE_1,
+	FLOOR_TILE_2,
+	FLOOR_TILE_3,
+	FLOOR_TILE_4,
+	FLOOR_TILE_5,
+	FLOOR_TILE_COUNT
 };
 
-enum CeilingType {
-    CEILING_SKY = 0,        // Sky visible
-    CEILING_SOLID,          // Solid ceiling texture
-    CEILING_TEXTURED,       // Textured ceiling
-    CEILING_TYPE_COUNT
+enum CeilingType
+{
+	CEILING_SKY = 0,        // Sky visible
+	CEILING_SOLID,          // Solid ceiling texture
+	CEILING_TEXTURED,       // Textured ceiling
+	CEILING_TYPE_COUNT
 };
