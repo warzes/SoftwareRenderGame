@@ -12,7 +12,6 @@ HDC g_memDC{ nullptr };
 HBITMAP g_hBitmap{ nullptr };
 BITMAPINFO g_bmi;
 
-
 int g_windowWidth = 1600;
 int g_windowHeight = 900;
 int g_frameWidth = 0;
@@ -26,6 +25,18 @@ WPARAM g_lastMouseButtons = 0;
 BOOL g_mouseMoved = FALSE;
 
 bool keys[256] = { false };
+//=============================================================================
+unsigned GetPixel(int x, int y)
+{
+	if (x < 0 || x >= g_frameWidth || y < 0 || y >= g_frameHeight) return 0;
+	return g_frameBuffer[y * g_frameWidth + x];
+}
+//=============================================================================
+void SetPixel(int x, int y, unsigned color)
+{
+	if (x < 0 || x >= g_frameWidth || y < 0 || y >= g_frameHeight) return;
+	g_frameBuffer[y * g_frameWidth + x] = color;
+}
 //=============================================================================
 void ResizeBuffer(int width, int height)
 {

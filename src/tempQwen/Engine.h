@@ -13,116 +13,43 @@ void Fatal(const std::string& msg);
 
 inline float DegToRad(float degrees) { return degrees * M_PI / 180.0f; }
 
-struct Color final
-{
-	Color() = default;
-	Color(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255) : r(r), g(g), b(b) , a(a) {}
-
-	uint8_t r = 0;
-	uint8_t g = 0;
-	uint8_t b = 0;
-	uint8_t a = 0;
-};
-
-unsigned ColorToUInt(const Color& color);
 unsigned ColorToUInt(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255);
 
-struct Vector2D final
+inline unsigned ColorLerp(unsigned color1, unsigned color2, double t)
 {
-	Vector2D() = default;
-	Vector2D(float x, float y) : x(x), y(y) {}
 
-	Vector2D operator+(const Vector2D& v) const { return { x + v.x, y + v.y }; }
-	Vector2D operator-(const Vector2D& v) const { return { x - v.x, y - v.y }; }
-	Vector2D operator*(float s) const { return { x * s, y * s }; }
+	if (t < 0)
+		return color1;
+	if (t >= 1)
+		return color2;
 
-	float Length() const { return sqrtf(x * x + y * y); }
+	unsigned r1 = (color1 >> 16) & 0xFF;
+	unsigned r2 = (color2 >> 16) & 0xFF;
 
-	Vector2D Normalize() const
-	{
-		float len = Length();
-		return len > 0.0 ? Vector2D(x / len, y / len) : Vector2D(0, 0);
-	}
+	unsigned g1 = (color1 >> 8) & 0xFF;
+	unsigned g2 = (color2 >> 8) & 0xFF;
 
-	float x = 0.0f;
-	float y = 0.0f;
-};
+	unsigned b1 = (color1) & 0xFF;
+	unsigned b2 = (color2) & 0xFF;
 
-struct Vector3D final
-{
-	Vector3D() = default;
-	Vector3D(float x, float y, float z) : x(x), y(y), z(z) {}
+	r1 = (1 - t) * r1 + t * r2;
+	if (r1 > 0xFF) r1 = 0xFF;
 
-	Vector3D operator+(const Vector3D& v) const { return { x + v.x, y + v.y, z + v.z }; }
-	Vector3D operator-(const Vector3D& v) const { return { x - v.x, y - v.y, z - v.z }; }
-	
-	float Length() const { return sqrtf(x * x + y * y + z * z); }
-	Vector3D Normalize() const
-	{
-		const float len = Length();
-		return len > 0 ? Vector3D(x / len, y / len, z / len) : Vector3D(0, 0, 0);
-	}
+	g1 = (1 - t) * g1 + t * g2;
+	if (g1 > 0xFF) g1 = 0xFF;
 
-	float x = 0.0f;
-	float y = 0.0f;
-	float z = 0.0f;
-};
+	b1 = (1 - t) * b1 + t * b2;
+	if (b1 > 0xFF) b1 = 0xFF;
 
-bool RayIntersect(const Vector2D& rayStart, const Vector2D& rayDir, const Vector2D& wallStart, const Vector2D& wallEnd, float& distance, Vector2D& intersection);
-
-struct WallSegment final
-{
-	Vector2D start, end;
-	int textureId;
-	float heightTop, heightBottom;
-};
-
-struct SectorO final
-{
-	std::vector<WallSegment> walls;
-	float floorHeight, ceilingHeight;
-	int floorTexture, ceilingTexture;
-};
-
-struct Camera final
-{
-	Camera(Vector3D pos, float ang) : position(pos), angle(ang), pitch(0.0f) {}
-
-	Vector3D position;
-	float angle; // Угол поворота камеры (в радианах)
-	float pitch; // Наклон камеры (в радианах)
-};
-
-void MoveCamera(Camera& camera, float dx, float dy, float dz = 0);
-void RotateCamera(Camera& camera, float angleChange);
-
-class Texture final
-{
-public:
-	Texture(int w, int h) : width(w), height(h)
-	{
-		pixels.resize(w * h, ColorToUInt(128, 128, 128)); // Заполняем серым по умолчанию
-	}
-
-	uint32_t GetPixel(int x, int y) const
-	{
-		x = x % width;
-		y = y % height;
-		if (x < 0) x += width;
-		if (y < 0) y += height;
-		return pixels[y * width + x];
-	}
-
-	void SetPixel(int x, int y, uint32_t color)
-	{
-		if (x >= 0 && x < width && y >= 0 && y < height) {
-			pixels[y * width + x] = color;
-		}
-	}
-
-	int width, height;
-	std::vector<uint32_t> pixels;
-};
+	return (r1 << 16) + (g1 << 8) + (b1);
+}
 
 // Простое затенение на основе расстояния
-COLORREF ApplyLighting(COLORREF color, float distance);
+unsigned ApplyLighting(unsigned color, float distance);
+
+void loadFile(std::vector<unsigned char>& buffer, const std::string& filename);
+void saveFile(const std::vector<unsigned char>& buffer, const std::string& filename);
+
+int loadImage(std::vector<unsigned>& out, unsigned long& w, unsigned long& h, const std::string& filename);
+int decodePNG(std::vector<unsigned char>& out_image, unsigned long& image_width, unsigned long& image_height, const unsigned char* in_png, size_t in_size, bool convert_to_rgba32 = true);
+int decodePNG(std::vector<unsigned char>& out_image_32bit, unsigned long& image_width, unsigned long& image_height, const std::vector<unsigned char>& in_png);
