@@ -18,3 +18,9 @@
 #define FOG_CONSTANT ((mapWidth + mapHeight)/2)
 
 #define numSprites 23
+
+#define MAX_DOORS 20
+enum DoorState { closed, opening, open, closing };
+enum Direction { dir_N, dir_S, dir_E, dir_W };
+
+#define MAX_PUSH_WALLS 20

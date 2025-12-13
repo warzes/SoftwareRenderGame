@@ -43,13 +43,6 @@ int worldMap[mapWidth][mapHeight] =
 	{2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 5, 5, 5, 5, 5, 5, 5, 5, 5}
 };
 
-struct Sprite
-{
-	double x;
-	double y;
-	int texture;
-};
-
 Sprite sprite[numSprites] =
 {
 	{20.5, 10.5, 22},
@@ -88,37 +81,24 @@ double spriteDistance[numSprites];
 void sortSprites(int* order, double* dist, int amount)
 {
 	std::vector<std::pair<double, int>> sprites(amount);
-	for (int i = 0; i < amount; i++) {
+	for (int i = 0; i < amount; i++)
+	{
 		sprites[i].first = dist[i];
 		sprites[i].second = order[i];
 	}
 	std::sort(sprites.begin(), sprites.end());
 	// restore in reverse order to go from farthest to nearest
-	for (int i = 0; i < amount; i++) {
+	for (int i = 0; i < amount; i++)
+	{
 		dist[i] = sprites[amount - i - 1].first;
 		order[i] = sprites[amount - i - 1].second;
 	}
 }
 
-#define MAX_DOORS 20
-enum DoorState { closed, opening, open, closing };
-enum Direction { dir_N, dir_S, dir_E, dir_W };
-struct Door
-{
-	int x, y;
-	int counter;
-	DoorState state;
-} doors[MAX_DOORS];
+Door doors[MAX_DOORS];
 int numDoors = 0;
 
-#define MAX_PUSH_WALLS 20
-struct PushWall
-{
-	int x, y;
-	int counter;
-	DoorState state;
-	Direction direction;
-} pushWalls[MAX_PUSH_WALLS];
+PushWall pushWalls[MAX_PUSH_WALLS];
 int numPushWalls = 0;
 
 void preProcessMap()
@@ -228,37 +208,6 @@ void updateMap()
 	}
 }
 
-#if FOG_LEVEL
-unsigned color_lerp(unsigned color1, unsigned color2, double t)
-{
-
-	if (t < 0)
-		return color1;
-	if (t >= 1)
-		return color2;
-
-	unsigned r1 = (color1 >> 16) & 0xFF;
-	unsigned r2 = (color2 >> 16) & 0xFF;
-
-	unsigned g1 = (color1 >> 8) & 0xFF;
-	unsigned g2 = (color2 >> 8) & 0xFF;
-
-	unsigned b1 = (color1) & 0xFF;
-	unsigned b2 = (color2) & 0xFF;
-
-	r1 = (1 - t) * r1 + t * r2;
-	if (r1 > 0xFF) r1 = 0xFF;
-
-	g1 = (1 - t) * g1 + t * g2;
-	if (g1 > 0xFF) g1 = 0xFF;
-
-	b1 = (1 - t) * b1 + t * b2;
-	if (b1 > 0xFF) b1 = 0xFF;
-
-	return (r1 << 16) + (g1 << 8) + (b1);
-}
-#endif
-
 bool canPass(int x, int y)
 {
 	if (worldMap[x][y] == 9) {
@@ -269,18 +218,6 @@ bool canPass(int x, int y)
 		return true;
 	return worldMap[x][y] == 0;
 }
-
-struct Strip
-{
-	int x;
-	int drawStart, drawEnd;
-	double perpWallDist;
-	std::vector<unsigned>& texture;
-	int texX;
-	double fog;
-	int side;
-	bool seeThrough;
-};
 
 void drawStrip(Strip& strip)
 {
@@ -310,7 +247,7 @@ void drawStrip(Strip& strip)
 			if (strip.side == 1) color = (color >> 2) & 0x3F3F3F;
 
 #if FOG_LEVEL
-			color = color_lerp(color, FOG_COLOR, strip.fog);
+			color = ColorLerp(color, FOG_COLOR, strip.fog);
 #endif
 			if (strip.seeThrough)
 				color = ((color & 0xFEFEFE) >> 1) + ((GetPixel(strip.x,y) & 0xFEFEFE) >> 1);
@@ -344,7 +281,6 @@ std::vector<SpritePrepare> spritePrep;
 //SPRITE CASTING
 void prepareSprites()
 {
-
 	spritePrep.clear();
 
 	SpritePrepare prep;
@@ -435,7 +371,6 @@ void prepareSprites()
 
 void drawSpriteStrip(SpritePrepare& prep, int stripe)
 {
-
 	if (stripe < prep.drawStartX || stripe >= prep.drawEndX)
 		return;
 
@@ -455,7 +390,7 @@ void drawSpriteStrip(SpritePrepare& prep, int stripe)
 		unsigned color = texture[prep.texNum][texWidth * texY + prep.texX]; //get current color from the texture
 		if ((color & 0x00FFFFFF) != 0) {
 #if FOG_LEVEL
-			color = color_lerp(color, FOG_COLOR, prep.fog);
+			color = ColorLerp(color, FOG_COLOR, prep.fog);
 #endif
 			SetPixel(stripe, y, color); //paint pixel if it isn't black, black is the invisible color
 		}
@@ -475,15 +410,9 @@ void drawSpriteStrip(SpritePrepare& prep, int stripe)
 	}
 }
 
-struct intersect
+intersect wallIntersect(double W0x, double W0y, double W1x, double W1y, double Px, double Py, double Dx, double Dy)
 {
-	double tr, tw;
-};
-
-struct intersect wallIntersect(double W0x, double W0y, double W1x, double W1y,
-	double Px, double Py, double Dx, double Dy)
-{
-	struct intersect i = { -1, -1 };
+	intersect i = { -1, -1 };
 	double M = (W1y - W0y) / (W1x - W0x); // Note to self: M = -1 or 1 in our case
 	if (Dy == M * Dx) return i; // parallel ray
 	i.tr = (W0y + M * (Px - W0x) - Py) / (Dy - M * Dx);
@@ -491,11 +420,77 @@ struct intersect wallIntersect(double W0x, double W0y, double W1x, double W1y,
 	return i;
 }
 
-// Helper prototypes
-void RenderSkybox(int w, int h);
-void RenderFloor(int w, int h);
-void RenderCeiling(int w, int h);
-void RenderWalls(int w, int h);
+// Initialize ray casting context for a column
+/**
+ * Fill the ray context for column `x`.
+ * - x: column index (0..w-1)
+ * - w: screen width
+ * - ctx: output RayContext
+ */
+void InitRayContext(int x, int w, RayContext& ctx)
+{
+	double cameraX = 2 * x / double(w) - 1; // x-coordinate in camera space
+	ctx.rayDirX = dirX + planeX * cameraX;
+	ctx.rayDirY = dirY + planeY * cameraX;
+	ctx.mapX = int(posX);
+	ctx.mapY = int(posY);
+	ctx.deltaDistX = (ctx.rayDirX == 0) ? 1e30 : std::abs(1 / ctx.rayDirX);
+	ctx.deltaDistY = (ctx.rayDirY == 0) ? 1e30 : std::abs(1 / ctx.rayDirY);
+	if (ctx.rayDirX < 0) { ctx.stepX = -1; ctx.sideDistX = (posX - ctx.mapX) * ctx.deltaDistX; }
+	else { ctx.stepX = 1; ctx.sideDistX = (ctx.mapX + 1.0 - posX) * ctx.deltaDistX; }
+	if (ctx.rayDirY < 0) { ctx.stepY = -1; ctx.sideDistY = (posY - ctx.mapY) * ctx.deltaDistY; }
+	else { ctx.stepY = 1; ctx.sideDistY = (ctx.mapY + 1.0 - posY) * ctx.deltaDistY; }
+}
+
+// Step along the ray until hitting a non-empty map cell
+void NextMapHit(RayContext& ctx, int& outMapX, int& outMapY, int& outSide)
+{
+	while (true) {
+		if (ctx.sideDistX < ctx.sideDistY) {
+			ctx.sideDistX += ctx.deltaDistX;
+			ctx.mapX += ctx.stepX;
+			outSide = 0;
+		}
+		else {
+			ctx.sideDistY += ctx.deltaDistY;
+			ctx.mapY += ctx.stepY;
+			outSide = 1;
+		}
+		if (worldMap[ctx.mapX][ctx.mapY] > 0) {
+			outMapX = ctx.mapX;
+			outMapY = ctx.mapY;
+			return;
+		}
+	}
+}
+
+// Analyze a single hit and compute info needed for rendering.
+// ComputeHitInfo dispatches to specialized handlers and returns HitInfo.
+HitInfo ComputeHitInfo(RayContext& ctx, int hitMapX, int hitMapY, int side)
+{
+	HitInfo info;
+	info.texNum = worldMap[hitMapX][hitMapY] - 1;
+	info.side = side;
+	info.diag = false;
+	info.door = NULL;
+	info.pw = NULL;
+	info.perpWallDist = 0;
+	info.wallX = 0;
+	info.resume = false;
+	// Try specialized handlers; only one will accept the hit
+	if (HandleSunkenWall(ctx, info, hitMapX, hitMapY, side))
+		return info;
+	if (HandlePushWall(ctx, info, hitMapX, hitMapY, side))
+		return info;
+	if (HandleDiagonalWall(ctx, info, hitMapX, hitMapY, side))
+		return info;
+	if (HandleRegularWall(ctx, info, hitMapX, hitMapY, side))
+		return info;
+
+	// fallback: resume scanning
+	info.resume = true;
+	return info;
+}
 
 //=============================================================================
 bool InitGame()
@@ -544,9 +539,6 @@ void CloseGame()
 //=============================================================================
 void FrameGame()
 {
-	const int w = g_frameWidth;
-	const int h = g_frameHeight;
-	
 	// ќчищаем буферы
 	for (int i = 0; i < g_frameWidth * g_frameHeight; i++)
 	{
@@ -556,14 +548,14 @@ void FrameGame()
 
 	// Draw skybox and ceiling/floor via helper functions
 #if SKYBOX
-	RenderSkybox(w, h);
+	RenderSkybox(g_frameWidth, g_frameHeight);
 #endif
 
 	// Render floor and ceiling by helper functions
-	RenderFloor(w, h);
+	RenderFloor(g_frameWidth, g_frameHeight);
 
 #if !SKYBOX
-	RenderCeiling(w, h);
+	RenderCeiling(g_frameWidth, g_frameHeight);
 #endif
 
 	prepareSprites();
@@ -583,7 +575,7 @@ void FrameGame()
 	}
 
 	// Wall casting and sprite blending
-	RenderWalls(w, h);
+	RenderWalls(g_frameWidth, g_frameHeight);
 		
 	doorTime += 0.016;
 	if (doorTime > 1.0 / texWidth) {
@@ -740,9 +732,10 @@ void RenderSkybox(int w, int h)
 	int dtexY = SKYBOX_HEIGHT * (h / 2 + lookVert) / (h / 2 + LOOK_UP_MAX) - 1;
 	int texY0 = SKYBOX_HEIGHT - 1 - dtexY;
 
-	for (int x = 0, cX = 0; x < w; x++) {
-
-		if (texX0 >= SKYBOX_WIDTH) {
+	for (int x = 0, cX = 0; x < w; x++)
+	{
+		if (texX0 >= SKYBOX_WIDTH)
+		{
 			texX = texX0 - SKYBOX_WIDTH;
 		}
 		else
@@ -754,14 +747,16 @@ void RenderSkybox(int w, int h)
 			SetPixel(x, y, color);
 
 			cY = cY + dtexY;
-			while (cY > dy) {
+			while (cY > dy)
+			{
 				texY = texY + 1;
 				cY = cY - dy;
 			}
 		}
 
 		cX = cX + dtexX;
-		while (cX > w) {
+		while (cX > w)
+		{
 			texX0 = texX0 + 1;
 			cX = cX - w;
 		}
@@ -809,7 +804,7 @@ void RenderFloor(int w, int h)
 			unsigned color = texture[floorTexture][texWidth * ty + tx];
 			color = (color >> 1) & 8355711;
 #if FOG_LEVEL
-			color = color_lerp(color, FOG_COLOR, fog);
+			color = ColorLerp(color, FOG_COLOR, fog);
 #endif
 			SetPixel(x, y, color);
 		}
@@ -853,7 +848,7 @@ void RenderCeiling(int w, int h)
 			unsigned color = texture[ceilingTexture][texWidth * ty + tx];
 			color = (color >> 1) & 8355711;
 #if FOG_LEVEL
-			color = color_lerp(color, FOG_COLOR, fog);
+			color = ColorLerp(color, FOG_COLOR, fog);
 #endif
 			SetPixel(x, y, color);
 		}
@@ -863,6 +858,13 @@ void RenderCeiling(int w, int h)
 // Renders walls and blended sprites per column
 void RenderWalls(int w, int h)
 {
+#if 0
+	for (int x = 0; x < w; x++)
+	{
+		std::vector<Strip> strips = GatherStripsForColumn(x, w, h);
+		ComposeColumn(x, h, strips);
+	}
+#else
 	std::stack<Strip> stack;
 	for (int x = 0; x < w; x++)
 	{
@@ -1064,4 +1066,217 @@ void RenderWalls(int w, int h)
 		while (farSprite >= 0)
 			drawSpriteStrip(spritePrep[farSprite--], x);
 	}
+#endif
+}
+
+// GatherStripsForColumn initializes the ray and collects all visible strips for the column x by calling CastRayToHit.
+std::vector<Strip> GatherStripsForColumn(int x, int w, int h)
+{
+	RayContext ctx;
+	InitRayContext(x, w, ctx);
+	std::vector<Strip> strips;
+	CastRayToHit(ctx, x, h, strips);
+	return strips;
+}
+
+// CastRayToHit performs the classic DDA scanning loop, building strips for
+// each valid hit. It will push accepted strips into the provided vector.
+void CastRayToHit(RayContext& ctx, int x, int h, std::vector<Strip>& strips)
+{
+	while (true) {
+		int hitMapX, hitMapY, side;
+		NextMapHit(ctx, hitMapX, hitMapY, side);
+		HitInfo info = ComputeHitInfo(ctx, hitMapX, hitMapY, side);
+		if (info.resume) continue;
+
+		auto buildRes = BuildStripForHit(info, ctx, x, h);
+		if (!buildRes.first) continue;
+		strips.push_back(buildRes.second);
+
+		if (info.texNum == 9 || info.texNum == 10 || info.texNum == 11 || info.texNum == 12) {
+			// transparent or fancy wall Ч continue scanning
+			continue;
+		}
+		break; // nearest opaque or final wall
+	}
+}
+
+// Build a Strip structure from the computed HitInfo. Returns false when the
+// strip should be ignored and the scan continued (matching old "goto rayscan").
+std::pair<bool, Strip> BuildStripForHit(const HitInfo& info, RayContext& ctx, int x, int h)
+{
+	int lineHeight = (int)(h / info.perpWallDist);
+	int drawStart = -lineHeight / 2 + h / 2 + lookVert + eyePos / info.perpWallDist;
+	int drawEnd = lineHeight / 2 + h / 2 + lookVert + eyePos / info.perpWallDist;
+
+	double wallX = info.wallX;
+	if (!info.diag) {
+		if (info.side == 0) wallX = posY + info.perpWallDist * ctx.rayDirY;
+		else                 wallX = posX + info.perpWallDist * ctx.rayDirX;
+		wallX -= floor((wallX));
+	}
+	int texX = int(wallX * double(texWidth));
+	if (info.door) {
+		texX -= texWidth - info.door->counter;
+		if (texX < 0) return std::make_pair(false, Strip{ 0,0,0,0,texture[0],0,0,0,false });
+	}
+	if (info.side == 0 && ctx.rayDirX > 0) texX = texWidth - texX - 1;
+	if (info.side == 1 && ctx.rayDirY < 0) texX = texWidth - texX - 1;
+#if FOG_LEVEL
+	double fog = info.perpWallDist / FOG_CONSTANT * FOG_LEVEL;
+#endif
+	Strip strip = { x, drawStart, drawEnd, info.perpWallDist, texture[info.texNum], texX, fog, info.side,
+	  info.texNum == 11 || info.texNum == 12 };
+	return std::make_pair(true, strip);
+}
+
+// ComposeColumn composes wall strips and sprites: it draws walls from nearest to farthest, blending sprites in between.
+void ComposeColumn(int x, int h, const std::vector<Strip>& strips)
+{
+	// push strips on stack so drawing order preserves nearest-first semantics
+	std::stack<Strip> stack;
+	for (const Strip& s : strips) stack.push(s);
+
+	// find closest wall distance (top of stack)
+	int farSprite = spritePrep.size() - 1;
+	double farthestWall = 1e30;
+	if (!stack.empty()) farthestWall = stack.top().perpWallDist;
+	while (farSprite >= 0 && spritePrep[farSprite].transformY > farthestWall)
+		farSprite--;
+
+	while (!stack.empty()) {
+		const Strip& strip = stack.top();
+		while (farSprite >= 0 && spritePrep[farSprite].transformY > strip.perpWallDist) {
+			drawSpriteStrip(spritePrep[farSprite--], x);
+		}
+		// need a const_cast because drawStrip wants a non-const reference
+		Strip s = strip;
+		drawStrip(s);
+		stack.pop();
+	}
+	while (farSprite >= 0)
+		drawSpriteStrip(spritePrep[farSprite--], x);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * HandleSunkenWall handles walls with an offset (sunken) shape which
+ * capture doors, windows and other see-through surfaces.
+ *
+ * Parameters:
+ *  - ctx: current RayContext used by the DDA algorithm
+ *  - info: HitInfo to populate with distance/flags
+ *  - hitMapX/hitMapY: the map cell coordinates where the hit occurred
+ *  - side: which axis side was crossed (0=x or 1=y)
+ *
+ * Returns:
+ *  - true: the hit is accepted and the caller can build a Strip
+ *  - false: the ray should continue scanning (same as original 'goto rayscan')
+ */
+bool HandleSunkenWall(RayContext& ctx, HitInfo& info, int hitMapX, int hitMapY, int side)
+{
+	if (!(info.texNum == 8 || info.texNum == 9 || info.texNum == 10 || info.texNum == 11 || info.texNum == 12))
+		return false;
+	if (info.texNum == 8) info.door = findDoor(hitMapX, hitMapY);
+	if (side == 0) {
+		double dist = ctx.sideDistX - ctx.deltaDistX * 0.5;
+		if (ctx.sideDistY < dist) { info.resume = true; return false; }
+		info.perpWallDist = dist;
+	}
+	else {
+		double dist = ctx.sideDistY - ctx.deltaDistY * 0.5;
+		if (ctx.sideDistX < dist) { info.resume = true; return false; }
+		info.perpWallDist = dist;
+	}
+	return true;
+}
+
+/**
+ * HandlePushWall processes secret push-walls that may be partially collapsed.
+ *
+ * The handler sets info.pw and calculates a modified perpendicular distance
+ * based on the current push progress stored in the PushWall structure.
+ *
+ * Returns true if the hit should be accepted, or false to continue scanning.
+ */
+bool HandlePushWall(RayContext& ctx, HitInfo& info, int hitMapX, int hitMapY, int side)
+{
+	if (info.texNum != 13) return false;
+	info.pw = findPushWall(hitMapX, hitMapY);
+	if (!info.pw) return false;
+	if (side == 0) {
+		double dist = ctx.sideDistX - ctx.deltaDistX * (double)info.pw->counter / texWidth;
+		if (ctx.sideDistY < dist) { info.resume = true; return false; }
+		info.perpWallDist = dist;
+	}
+	else {
+		double dist = ctx.sideDistY - ctx.deltaDistY * (double)info.pw->counter / texWidth;
+		if (ctx.sideDistX < dist) { info.resume = true; return false; }
+		info.perpWallDist = dist;
+	}
+	return true;
+}
+
+/**
+ * HandleDiagonalWall resolves diagonal walls with the special intersection
+ * logic implemented in wallIntersect().
+ *
+ * Parameters:
+ *  - ctx: ray context currently being traced
+ *  - info: HitInfo structure to populate (perpWallDist, wallX, diag)
+ *  - hitMapX/hitMapY: the map cell coordinates
+ *  - side: crossing side
+ *
+ * Returns:
+ *  - true if the diagonal hit is valid and accepted; false if scanning
+ *    should continue.
+ */
+bool HandleDiagonalWall(RayContext& ctx, HitInfo& info, int hitMapX, int hitMapY, int side)
+{
+	if (!(info.texNum == 14 || info.texNum == 15)) return false;
+	struct intersect i;
+	double d;
+	if (info.texNum == 14) {
+		i = wallIntersect(hitMapX, hitMapY, hitMapX + 1, hitMapY + 1, posX, posY, ctx.rayDirX, ctx.rayDirY);
+		d = posX - hitMapX - posY + hitMapY;
+	}
+	else {
+		i = wallIntersect(hitMapX, hitMapY + 1, hitMapX + 1, hitMapY, posX, posY, ctx.rayDirX, ctx.rayDirY);
+		d = hitMapX - posX - posY + hitMapY + 1;
+	}
+	if (i.tw < 0.0 || i.tw >= 1.0) { info.resume = true; return false; }
+	info.perpWallDist = i.tr;
+	info.wallX = i.tw;
+	if (d < 0) info.wallX = 1.0 - info.wallX;
+	info.diag = true;
+	info.side = 3;
+	return true;
+}
+
+/**
+ * HandleRegularWall fills `info` for normal axis-aligned walls.
+ *
+ * Parameters and semantics are similar to other handlers: it computes
+ * `info.perpWallDist` and returns true if handled.
+ */
+bool HandleRegularWall(RayContext& ctx, HitInfo& info, int hitMapX, int hitMapY, int side)
+{
+	// Any map cell that isn't a sunken door, push wall, or diagonal falls here
+	if (info.texNum == 8 || info.texNum == 9 || info.texNum == 10 || info.texNum == 11 || info.texNum == 12 || info.texNum == 13 || info.texNum == 14 || info.texNum == 15)
+		return false;
+	if (side == 0) info.perpWallDist = (ctx.sideDistX - ctx.deltaDistX);
+	else           info.perpWallDist = (ctx.sideDistY - ctx.deltaDistY);
+	return true;
 }
