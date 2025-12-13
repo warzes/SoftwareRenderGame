@@ -15,6 +15,11 @@ extern bool keys[256];
 #define mapWidth 24
 #define mapHeight 24
 
+#define SKYBOX 1
+#define SKYBOX_WIDTH    320
+#define SKYBOX_HEIGHT   200
+#define SKYBOX_REPEATS  4
+
 int worldMap[mapWidth][mapHeight] =
 {
 	{8,8,8,8,8,8,8,8,8,8,8,4,4,6,4,4,6,4,6,4,4,4,6,4},
@@ -101,7 +106,16 @@ void sortSprites(int* order, double* dist, int amount)
 	}
 }
 
+void SetPixel(int x, int y, unsigned color)
+{
+	if (x < 0 || x >= g_frameWidth || y < 0 || y >= g_frameHeight) return;
+	g_frameBuffer[y * g_frameWidth + x] = color;
+}
+
 std::vector<unsigned> texture[11];
+#if SKYBOX
+std::vector<unsigned> skybox{ 320 * 240 };
+#endif
 
 double posX = 22.0, posY = 11.5; //x and y start position
 double dirX = -1.0, dirY = 0.0; //initial direction vector
@@ -129,6 +143,11 @@ bool InitGame()
 	error |= loadImage(texture[10], tw, th, "data/pics/statue.png");
 	if (error) { Error("error loading images"); return false; }
 
+#if SKYBOX
+	error |= loadImage(skybox, tw, th, "data/pics/skybox.png");
+	if (error) { Error("error loading skybox"); return false; }
+#endif
+
 
 	return true;
 }
@@ -139,6 +158,10 @@ void CloseGame()
 //=============================================================================
 void FrameGame()
 {
+	const int w = g_frameWidth;
+	const int h = g_frameHeight;
+
+
 	//speed modifiers
 	double moveSpeed = 0.016 * 3.0; //the constant value is in squares/second
 	double rotSpeed = 0.016 * 3.0; //the constant value is in radians/second
@@ -189,6 +212,55 @@ void FrameGame()
 		g_depthBuffer[i] = 10000.0f; // Бесконечность
 	}
 
+#if SKYBOX
+	{
+		int texX;
+		double rayDirX0 = dirX - planeX;
+		double rayDirY0 = dirY - planeY;
+		double rayDirX1 = dirX + planeX;
+		double rayDirY1 = dirY + planeY;
+
+		int texX0 = (int)(-atan2(rayDirY0, rayDirX0) * (double)SKYBOX_WIDTH / (2 * M_PI) * SKYBOX_REPEATS);
+		int texX1 = (int)(-atan2(rayDirY1, rayDirX1) * (double)SKYBOX_WIDTH / (2 * M_PI) * SKYBOX_REPEATS);
+		while (texX1 < texX0)
+			texX1 += SKYBOX_WIDTH;
+		while (texX0 < 0) {
+			texX0 += SKYBOX_WIDTH;
+			texX1 += SKYBOX_WIDTH;
+		}
+
+		int dtexX = texX1 - texX0;
+		int dy = h / 2;
+		int dtexY = SKYBOX_HEIGHT - 1;
+		for (int x = 0, cX = 0; x < w; x++) {
+
+			if (texX0 >= SKYBOX_WIDTH) {
+				texX = texX0 - SKYBOX_WIDTH;
+			}
+			else
+				texX = texX0;
+
+			for (int y = 0, texY = 0, cY = 0; y < dy; y++) {
+
+				unsigned color = skybox[SKYBOX_WIDTH * texY + texX];
+				SetPixel(x, y, color);
+
+				cY = cY + dtexY;
+				while (cY > dy) {
+					texY = texY + 1;
+					cY = cY - dy;
+				}
+			}
+
+			cX = cX + dtexX;
+			while (cX > w) {
+				texX0 = texX0 + 1;
+				cX = cX - w;
+			}
+		}
+	}
+#endif
+
 	//FLOOR CASTING
 	for (int y = g_frameHeight / 2 + 1; y < g_frameHeight; ++y)
 	{
@@ -235,28 +307,30 @@ void FrameGame()
 			int floorTexture;
 			if (checkerBoardPattern == 0) floorTexture = 3;
 			else floorTexture = 4;
+#if !SKYBOX
 			int ceilingTexture = 6;
+#endif
 			unsigned color;
 
 			// floor
 			color = texture[floorTexture][texWidth * ty + tx];
 			color = (color >> 1) & 8355711; // make a bit darker
-			int pixelIndex = y * g_frameWidth + x;
-			g_frameBuffer[pixelIndex] = color;
+			SetPixel(x,y, color);
 
-			//ceiling (symmetrical, at screenHeight - y - 1 instead of y)
+#if !SKYBOX
+			//ceiling (symmetrical, at g_frameHeight - y - 1 instead of y)
 			color = texture[ceilingTexture][texWidth * ty + tx];
 			color = (color >> 1) & 8355711; // make a bit darker
-			pixelIndex = (g_frameHeight - y - 1)*g_frameWidth + x;
-			g_frameBuffer[pixelIndex] = color;
+			SetPixel(x, g_frameHeight - y - 1, color);
+#endif
 		}
 	}
 
 	// WALL CASTING
-	for (int x = 0; x < g_frameWidth; x++)
+	for (int x = 0; x < w; x++)
 	{
 		//calculate ray position and direction
-		double cameraX = 2 * x / double(g_frameWidth) - 1; //x-coordinate in camera space
+		double cameraX = 2 * x / double(w) - 1; //x-coordinate in camera space
 		double rayDirX = dirX + planeX * cameraX;
 		double rayDirY = dirY + planeY * cameraX;
 
@@ -326,11 +400,11 @@ void FrameGame()
 		else          perpWallDist = (sideDistY - deltaDistY);
 
 		//Calculate height of line to draw on screen
-		int lineHeight = (int)(g_frameHeight / perpWallDist);
+		int lineHeight = (int)(h / perpWallDist);
 
 		//calculate lowest and highest pixel to fill in current stripe
-		int drawStart = -lineHeight / 2 + g_frameHeight / 2;
-		int drawEnd = lineHeight / 2 + g_frameHeight / 2;		
+		int drawStart = -lineHeight / 2 + h / 2;
+		int drawEnd = lineHeight / 2 + h / 2;
 		//texturing calculations
 		int texNum = worldMap[mapX][mapY] - 1; //1 subtracted from it so that texture 0 can be used!
 
@@ -358,16 +432,15 @@ void FrameGame()
 			}
 			drawStart = 0;
 		}
-		if (drawEnd >= g_frameHeight)
-			drawEnd = (g_frameHeight - 1);
+		if (drawEnd >= h)
+			drawEnd = (h - 1);
 
 		for (int y = drawStart; y < drawEnd; y++) {
 
 			unsigned color = texture[texNum][texHeight * texY + texX];
 			//make color darker for y-sides: R, G and B byte each divided through two with a "shift" and an "and"
 			if (side == 1) color = (color >> 1) & 8355711;
-			int pixelIndex = y * g_frameWidth + x;
-			g_frameBuffer[pixelIndex] = color;
+			SetPixel(x, y, color);
 
 			c += texHeight;
 			while (c > dy) {
@@ -406,53 +479,81 @@ void FrameGame()
 		double transformX = invDet * (dirY * spriteX - dirX * spriteY);
 		double transformY = invDet * (-planeY * spriteX + planeX * spriteY); //this is actually the depth inside the screen, that what Z is in 3D, the distance of sprite to player, matching sqrt(spriteDistance[i])
 
-		int spriteScreenX = int((g_frameWidth / 2) * (1 + transformX / transformY));
+		if (transformY < 0) continue;
+
+		int spriteScreenX = int((w / 2) * (1 + transformX / transformY));
 
 		//parameters for scaling and moving the sprites
-#define uDiv 1
-#define vDiv 1
-#define vMove 0.0
+#define uDiv 2
+#define vDiv 2
+// Note that vMove is 128 rather than 64 to get the sprites on the ground.
+// It's because the textures are 32x32, rather than 64x64 as in the original.
+#define vMove 128.0
 		int vMoveScreen = int(vMove / transformY);
 
 		//calculate height of the sprite on screen
-		int spriteHeight = abs(int(g_frameHeight / (transformY))) / vDiv; //using "transformY" instead of the real distance prevents fisheye
+		int spriteHeight = abs(int(h / (transformY))) / vDiv; //using "transformY" instead of the real distance prevents fisheye
 		//calculate lowest and highest pixel to fill in current stripe
-		int drawStartY = -spriteHeight / 2 + g_frameHeight / 2 + vMoveScreen;
-		if (drawStartY < 0) drawStartY = 0;
-		int drawEndY = spriteHeight / 2 + g_frameHeight / 2 + vMoveScreen;
-		if (drawEndY >= g_frameHeight) drawEndY = g_frameHeight - 1;
+		int drawStartY = -spriteHeight / 2 + h / 2 + vMoveScreen;
+		int drawEndY = spriteHeight / 2 + h / 2 + vMoveScreen;
 
 		//calculate width of the sprite
-		int spriteWidth = abs(int(g_frameHeight / (transformY))) / uDiv; // same as height of sprite, given that it's square
+		int spriteWidth = abs(int(h / (transformY))) / uDiv; // same as height of sprite, given that it's square
 		int drawStartX = -spriteWidth / 2 + spriteScreenX;
-		if (drawStartX < 0) drawStartX = 0;
 		int drawEndX = spriteWidth / 2 + spriteScreenX;
-		if (drawEndX > g_frameWidth) drawEndX = g_frameWidth;
 
-		//loop through every vertical stripe of the sprite on screen
-		for (int stripe = drawStartX; stripe < drawEndX; stripe++)
-		{
-			int texX = int(256 * (stripe - (-spriteWidth / 2 + spriteScreenX)) * texWidth / spriteWidth) / 256;
-			//the conditions in the if are:
-			//1) it's in front of camera plane so you don't see things behind you
-			//2) ZBuffer, with perpendicular distance
-			if (transformY > 0 && transformY < g_depthBufferX[stripe])
+		// Precompute some variables for the vertical strips
+		int dY = drawEndY - drawStartY;
+		int cY0 = 0, texY0 = 0;
+		if (drawStartY < 0) {
+			cY0 = -drawStartY * texHeight;
+			if (cY0 > dY) {
+				div_t res = div(cY0, dY);
+				texY0 += res.quot;
+				cY0 = res.rem;
+			}
+			drawStartY = 0;
+		}
+		if (drawEndY >= h)
+			drawEndY = (h - 1);
+
+		int texX = 0, dX = drawEndX - drawStartX, cX = 0;
+
+		if (drawStartX < 0) {
+			cX = -drawStartX * texWidth;
+			if (cX > dX) {
+				div_t res = div(cX, dX);
+				texX += res.quot;
+				cX = res.rem;
+			}
+			drawStartX = 0;
+		}
+		if (drawEndX > w) drawEndX = w;
+
+		for (int stripe = drawStartX; stripe < drawEndX; stripe++) {
+			if (transformY < g_depthBufferX[stripe])
 			{
-				for (int y = drawStartY; y < drawEndY; y++) //for every pixel of the current stripe
-				{
-					int d = (y - vMoveScreen) * 256 - g_frameHeight * 128 + spriteHeight * 128; //256 and 128 factors to avoid floats
-					int texY = ((d * texHeight) / spriteHeight) / 256;
+				int texY = texY0, cY = cY0;
+				for (int y = drawStartY; y < drawEndY; y++) {
+
 					unsigned color = texture[sprite[spriteOrder[i]].texture][texWidth * texY + texX]; //get current color from the texture
-					if ((color & 0x00FFFFFF) != 0)
-					{
-						int pixelIndex = y * g_frameWidth + stripe;
-						g_frameBuffer[pixelIndex] = color; //paint pixel if it isn't black, black is the invisible color
+					if ((color & 0x00FFFFFF) != 0) SetPixel(stripe, y, color); //paint pixel if it isn't black, black is the invisible color
+
+					cY = cY + texHeight;
+					while (cY > dY) {
+						texY++;
+						cY -= dY;
 					}
 				}
 			}
+
+			cX += texWidth;
+			while (cX > dX) {
+				texX++;
+				cX -= dX;
+			}
 		}
 	}
-
 }
 
 //=============================================================================
