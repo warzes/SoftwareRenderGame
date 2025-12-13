@@ -15,6 +15,69 @@ std::vector<unsigned> texture[23];
 std::vector<unsigned> skybox{ 320 * 240 };
 #endif
 
+// Floor tile mapping - maps floor tile types to texture indices
+int floorTileTextures[FLOOR_TILE_COUNT] = { 3, 3, 4, 5, 6, 7 }; // Default mappings
+
+// Ceiling type mapping - maps ceiling types to texture indices or behavior
+int ceilingTypeTextures[CEILING_TYPE_COUNT] = { 0, 6, 6 }; // Sky doesn't need texture, solid and textured use texture 6 by default
+
+// Floor and ceiling map - separate from wall map to allow different properties
+int floorMap[mapWidth][mapHeight] =
+{
+	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 1, 1, 2, 1, 2, 1, 1, 1, 2, 1},
+	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+	{0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 2},
+	{0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 2},
+	{0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1},
+	{0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 2, 1, 2},
+	{0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 0, 0, 0, 0, 2},
+	{1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 2, 0, 2},
+	{1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2},
+	{1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1},
+	{1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 2, 0, 2},
+	{1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 2, 0, 1, 0, 2, 1, 2, 0, 2, 2, 2},
+	{1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 2, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1},
+	{2, 2, 2, 0, 2, 0, 0, 1, 2, 1, 0, 0, 2, 0, 2, 1, 0, 0, 0, 0, 0, 1},
+	{2, 2, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1},
+	{2, 0, 0, 0, 0, 2, 2, 0, 2, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1},
+	{1, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 2, 0, 2, 1, 0, 0, 0, 1, 1},
+	{2, 1, 0, 0, 2, 0, 0, 2, 2, 2, 1, 2, 2, 2, 0, 2, 0, 0, 1, 0, 1, 0, 1},
+	{2, 1, 0, 0, 0, 2, 1, 2, 2, 1, 0, 0, 1, 2, 0, 0, 0, 1, 0, 0, 1, 1},
+	{2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 1, 0, 1, 0, 1, 0, 1, 0, 1},
+	{1, 0, 2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+	{2, 0, 1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 2, 1, 0, 1, 0, 1, 0, 1, 0, 1},
+	{2, 2, 1, 0, 0, 0, 0, 2, 2, 1, 0, 0, 0, 1, 2, 0, 1, 0, 1, 0, 0, 0, 1, 1},
+	{2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1}
+};
+
+int ceilingMap[mapWidth][mapHeight] =
+{
+	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2},
+	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2},
+	{0, 0, 2, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 2, 2, 0, 0, 0, 2},
+	{0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2},
+	{0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 2, 0, 2, 2, 0, 0, 0, 2},
+	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 2, 0, 0, 0, 2, 2, 2},
+	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 2},
+	{2, 2, 2, 2, 0, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 2, 0, 2},
+	{2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2},
+	{2, 0, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 2},
+	{2, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 2, 0, 2},
+	{2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 2, 2, 0, 2, 2, 2},
+	{2, 2, 2, 2, 0, 2, 2, 2, 0, 0, 2, 0, 2, 0, 2, 0, 2, 2, 2, 0, 2, 2, 2},
+	{2, 2, 2, 2, 0, 2, 0, 0, 0, 2, 2, 2, 0, 2, 0, 2, 0, 0, 0, 0, 0, 2},
+	{2, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 2},
+	{2, 0, 0, 0, 2, 2, 0, 2, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 2},
+	{2, 0, 0, 0, 2, 0, 0, 2, 2, 2, 2, 2, 2, 0, 2, 2, 2, 0, 0, 0, 2, 2},
+	{2, 2, 0, 0, 0, 2, 0, 0, 2, 2, 2, 2, 2, 2, 2, 0, 2, 0, 0, 2, 0, 2, 0, 2},
+	{2, 2, 0, 0, 0, 2, 2, 2, 2, 2, 0, 0, 0, 2, 2, 0, 0, 0, 0, 2, 0, 2, 2},
+	{2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 2, 0, 2, 0, 2, 0, 2, 0, 2},
+	{2, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2},
+	{2, 0, 2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2},
+	{2, 2, 2, 0, 0, 0, 0, 2, 2, 2, 0, 0, 0, 2, 0, 2, 0, 2, 0, 0, 0, 2, 2},
+	{2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2}
+};
+
 int worldMap[mapWidth][mapHeight] =
 {
 	{8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 4, 4, 6, 4, 4, 6, 4, 6, 4, 4, 4, 6, 4},
@@ -456,6 +519,28 @@ bool InitGame()
 	if (error) { Error("error loading skybox"); return false; }
 #endif
 
+	// Initialize floor tile texture mappings
+	// FLOOR_TILE_DEFAULT -> texture 3 (tile1.png)
+	// FLOOR_TILE_1 -> texture 3 (tile1.png)
+	// FLOOR_TILE_2 -> texture 4 (tile2.png)
+	// FLOOR_TILE_3 -> texture 5 (tile3.png)
+	// FLOOR_TILE_4 -> texture 6 (tile4.png)
+	// FLOOR_TILE_5 -> texture 7 (tile5.png)
+	floorTileTextures[FLOOR_TILE_DEFAULT] = 3;
+	floorTileTextures[FLOOR_TILE_1] = 3;
+	floorTileTextures[FLOOR_TILE_2] = 4;
+	floorTileTextures[FLOOR_TILE_3] = 5;
+	floorTileTextures[FLOOR_TILE_4] = 6;
+	floorTileTextures[FLOOR_TILE_5] = 7;
+
+	// Initialize ceiling type texture mappings
+	// CEILING_SKY -> no texture needed (render sky or background)
+	// CEILING_SOLID -> texture 6 (tile4.png)
+	// CEILING_TEXTURED -> texture 6 (tile4.png)
+	ceilingTypeTextures[CEILING_SKY] = 0; // Not used when rendering sky
+	ceilingTypeTextures[CEILING_SOLID] = 6;
+	ceilingTypeTextures[CEILING_TEXTURED] = 6;
+
 	preProcessMap();
 
 	return true;
@@ -482,9 +567,9 @@ void FrameGame()
 	// Render floor and ceiling by helper functions
 	RenderFloor(g_frameWidth, g_frameHeight);
 
-#if !SKYBOX
+//#if !SKYBOX
 	RenderCeiling(g_frameWidth, g_frameHeight);
-#endif
+//#endif
 
 	prepareSprites();
 
@@ -726,15 +811,19 @@ void RenderFloor(int w, int h)
 			floorX += floorStepX;
 			floorY += floorStepY;
 
-			int checkerBoardPattern = (int(cellX + cellY)) & 1;
-			int floorTexture = (checkerBoardPattern == 0) ? 3 : 4;
-
-			unsigned color = texture[floorTexture][texWidth * ty + tx];
-			color = (color >> 1) & 8355711;
+			// Use floorMap to determine which floor tile texture to use
+			if (cellX >= 0 && cellX < mapWidth && cellY >= 0 && cellY < mapHeight)
+			{
+				// TODO: упростить выбор тайла пола, без лишних переменных
+				int floorTileType = floorMap[cellX][cellY];
+				int floorTexture = floorTileTextures[floorTileType];
+				unsigned color = texture[floorTexture][texWidth * ty + tx];
+				color = (color >> 1) & 8355711;
 #if FOG_LEVEL
-			color = ColorLerp(color, FOG_COLOR, fog);
+				color = ColorLerp(color, FOG_COLOR, fog);
 #endif
-			SetPixel(x, y, color);
+				SetPixel(x, y, color);
+			}
 		}
 	}
 }
@@ -772,6 +861,7 @@ void RenderCeiling(int w, int h)
 			floorX += floorStepX;
 			floorY += floorStepY;
 
+#if 0
 			int ceilingTexture = 6;
 			unsigned color = texture[ceilingTexture][texWidth * ty + tx];
 			color = (color >> 1) & 8355711;
@@ -779,6 +869,25 @@ void RenderCeiling(int w, int h)
 			color = ColorLerp(color, FOG_COLOR, fog);
 #endif
 			SetPixel(x, y, color);
+#else
+			// Use ceilingMap to determine which ceiling type to use
+			if (cellX >= 0 && cellX < mapWidth && cellY >= 0 && cellY < mapHeight)
+			{
+				int ceilingType = ceilingMap[cellX][cellY];
+
+				// Only render ceiling if it's not sky type (CEILING_SKY)
+				if (ceilingType != CEILING_SKY)
+				{
+					int ceilingTexture = ceilingTypeTextures[ceilingType];
+					unsigned color = texture[ceilingTexture][texWidth * ty + tx];
+					color = (color >> 1) & 8355711;
+#if FOG_LEVEL
+					color = ColorLerp(color, FOG_COLOR, fog);
+#endif
+					SetPixel(x, y, color);
+				}
+			}
+#endif
 		}
 	}
 }

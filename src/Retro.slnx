@@ -2,5 +2,8 @@
   <Configurations>
     <Platform Name="x64" />
   </Configurations>
+  <Folder Name="/Элементы решения/">
+    <File Path="ref.md" />
+  </Folder>
   <Project Path="Retro/Retro.vcxproj" Id="8abcb246-de7b-4a2f-9a8d-63b191d55840" />
 </Solution>
