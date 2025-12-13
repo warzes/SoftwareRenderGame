@@ -15,7 +15,7 @@ BITMAPINFO g_bmi;
 int g_windowWidth = 1600;
 int g_windowHeight = 900;
 int g_frameWidth = 0;
-int g_frameHeight = 480;
+int g_frameHeight = 400;
 unsigned* g_frameBuffer{ nullptr };
 float* g_depthBuffer{ nullptr };
 double* g_depthBufferX{ nullptr };

@@ -156,7 +156,7 @@ PushWall* findPushWall(int x, int y)
 
 bool wallCanMove(PushWall* pw, Direction dir)
 {
-	int nx, ny;
+	int nx=0, ny=0;
 	switch (dir) {
 	case dir_N: nx = pw->x; ny = pw->y - 1; break;
 	case dir_S: nx = pw->x; ny = pw->y + 1; break;
@@ -786,189 +786,204 @@ void RenderCeiling(int w, int h)
 // Renders walls and blended sprites per column
 void RenderWalls(int w, int h)
 {
+	const double invW = 2.0 / double(w);
+	const double dx = dirX, dy = dirY;
+	const double pX = planeX, pY = planeY;
+	const int spritePrepCount = (int)spritePrep.size();
+
 	std::stack<Strip> stack;
 	for (int x = 0; x < w; x++)
 	{
 		//calculate ray position and direction
-		double cameraX = 2 * x / double(w) - 1; //x-coordinate in camera space
-		double rayDirX = dirX + planeX * cameraX;
-		double rayDirY = dirY + planeY * cameraX;
+		double cameraX = x * invW - 1.0; //x-coordinate in camera space
+		double rayDirX = dx + pX * cameraX;
+		double rayDirY = dy + pY * cameraX;
 
 		//which box of the map we're in
 		int mapX = int(posX);
 		int mapY = int(posY);
 
-		//length of ray from current position to next x or y-side
-		double sideDistX;
-		double sideDistY;
-
 		//length of ray from one x or y-side to next x or y-side
-		double deltaDistX = (rayDirX == 0) ? 1e30 : std::abs(1 / rayDirX);
-		double deltaDistY = (rayDirY == 0) ? 1e30 : std::abs(1 / rayDirY);
-		double perpWallDist;
+		double deltaDistX = (rayDirX == 0.0) ? 1e30 : fabs(1.0 / rayDirX);
+		double deltaDistY = (rayDirY == 0.0) ? 1e30 : fabs(1.0 / rayDirY);
 
 		//what direction to step in x or y-direction (either +1 or -1)
-		int stepX;
-		int stepY;
+		int stepX = (rayDirX < 0.0) ? -1 : 1;
+		int stepY = (rayDirY < 0.0) ? -1 : 1;
+
+		//length of ray from current position to next x or y-side
+		double sideDistX = (rayDirX < 0.0) 
+			? (posX - mapX) * deltaDistX 
+			: (mapX + 1.0 - posX) * deltaDistX;
+		double sideDistY = (rayDirY < 0.0) 
+			? (posY - mapY) * deltaDistY
+			: (mapY + 1.0 - posY) * deltaDistY;
 
 		int hit = 0; //was there a wall hit?
-		int side; //was a NS or a EW wall hit?
+		int side = 0; //was a NS or a EW wall hit?
 
-		//calculate step and initial sideDist
-		if (rayDirX < 0)
-		{
-			stepX = -1;
-			sideDistX = (posX - mapX) * deltaDistX;
-		}
-		else
-		{
-			stepX = 1;
-			sideDistX = (mapX + 1.0 - posX) * deltaDistX;
-		}
-		if (rayDirY < 0)
-		{
-			stepY = -1;
-			sideDistY = (posY - mapY) * deltaDistY;
-		}
-		else
-		{
-			stepY = 1;
-			sideDistY = (mapY + 1.0 - posY) * deltaDistY;
-		}
+		double perpWallDist = 0.0;
+		int tile = 0;
 
-	rayscan:
-		//perform DDA
-		while (hit == 0)
+		// Scan ray until we find a wall that is not translucent/transparent
+		while (true)
 		{
-			//jump to next map square, either in x-direction, or in y-direction
-			if (sideDistX < sideDistY)
+			//perform DDA
+			while (hit == 0)
 			{
-				sideDistX += deltaDistX;
-				mapX += stepX;
-				side = 0;
+				//jump to next map square, either in x-direction, or in y-direction
+				if (sideDistX < sideDistY)
+				{
+					sideDistX += deltaDistX;
+					mapX += stepX;
+					side = 0;
+				}
+				else
+				{
+					sideDistY += deltaDistY;
+					mapY += stepY;
+					side = 1;
+				}
+				//Check if ray has hit a wall
+				if (worldMap[mapX][mapY] > 0) hit = 1;
+			}
+
+			//texturing calculations
+			int texNum = worldMap[mapX][mapY] - 1; //1 subtracted from it so that texture 0 can be used!
+
+			double wallX = 0.0; //where exactly the wall was hit
+			bool diag = false;
+			Door* door = NULL;
+			PushWall* pw = NULL;
+			// Sunken wall (door/entry/gate/glass) -> special distance logic
+			if (texNum == 8 || texNum == 9 || texNum == 10 || texNum == 11 || texNum == 12) {
+				/* Sunken wall encountered */
+				if (texNum == 8)
+					door = findDoor(mapX, mapY); /* Door encountered */
+				if (side == 0)
+				{
+					double dist = sideDistX - deltaDistX * 0.5;
+					if (sideDistY < dist)
+					{
+						hit = 0;
+						continue;
+					}
+					perpWallDist = dist;
+				}
+				else
+				{
+					double dist = sideDistY - deltaDistY * 0.5;
+					if (sideDistX < dist)
+					{
+						hit = 0;
+						continue;
+					}
+					perpWallDist = dist;
+				}
+			}
+			// Secret push wall similar handling
+			else if (texNum == 13 && (pw = findPushWall(mapX, mapY)))
+			{
+				/* Secret push wall encountered */
+				if (side == 0)
+				{
+					double dist = sideDistX - deltaDistX * (double)pw->counter / texWidth;
+					if (sideDistY < dist)
+					{
+						hit = 0;
+						continue;
+					}
+					perpWallDist = dist;
+				}
+				else
+				{
+					double dist = sideDistY - deltaDistY * (double)pw->counter / texWidth;
+					if (sideDistX < dist)
+					{
+						hit = 0;
+						continue;
+					}
+					perpWallDist = dist;
+				}
+			}
+			// Diagonal wall calculation
+			else if (texNum == 14 || texNum == 15)
+			{
+				/* Diagonal wall */
+				intersect i;
+				double d;
+				if (texNum == 14) {
+					i = wallIntersect(mapX, mapY, mapX + 1, mapY + 1, posX, posY, rayDirX, rayDirY);
+					d = posX - mapX - posY + mapY;
+				}
+				else {
+					i = wallIntersect(mapX, mapY + 1, mapX + 1, mapY, posX, posY, rayDirX, rayDirY);
+					d = mapX - posX - posY + mapY + 1;
+				}
+				if (i.tw < 0.0 || i.tw >= 1.0) {
+					hit = 0;
+					continue;
+				}
+				perpWallDist = i.tr;
+				wallX = i.tw;
+				if (d < 0) wallX = 1.0 - wallX;
+				diag = true;
+				side = 3;
 			}
 			else
 			{
-				sideDistY += deltaDistY;
-				mapY += stepY;
-				side = 1;
+				// Regular wall
+				perpWallDist = (side == 0) ? (sideDistX - deltaDistX) : (sideDistY - deltaDistY);
 			}
-			//Check if ray has hit a wall
-			if (worldMap[mapX][mapY] > 0) hit = 1;
-		}
 
-		//texturing calculations
-		int texNum = worldMap[mapX][mapY] - 1; //1 subtracted from it so that texture 0 can be used!
+			int lineHeight = (int)(h / perpWallDist);
 
-		double wallX; //where exactly the wall was hit
-		bool diag = false;
-		Door* door = NULL;
-		PushWall* pw = NULL;
-		if (texNum == 8 || texNum == 9 || texNum == 10 || texNum == 11 || texNum == 12) {
-			/* Sunken wall encountered */
-			if (texNum == 8)
-				door = findDoor(mapX, mapY); /* Door encountered */
-			if (side == 0) {
-				double dist = sideDistX - deltaDistX * 0.5;
-				if (sideDistY < dist) {
+			int drawStart = -lineHeight / 2 + h / 2 + lookVert + eyePos / perpWallDist;
+			int drawEnd = lineHeight / 2 + h / 2 + lookVert + eyePos / perpWallDist;
+
+			if (!diag) {
+				if (side == 0) wallX = posY + perpWallDist * rayDirY;
+				else           wallX = posX + perpWallDist * rayDirX;
+				wallX -= floor((wallX));
+			}
+
+			int texX = int(wallX * double(texWidth));
+
+			if (door)
+			{
+				texX -= texWidth - door->counter;
+				if (texX < 0)
+				{
 					hit = 0;
-					goto rayscan;
+					continue;
 				}
-				perpWallDist = dist;
 			}
-			else {
-				double dist = sideDistY - deltaDistY * 0.5;
-				if (sideDistX < dist) {
-					hit = 0;
-					goto rayscan;
-				}
-				perpWallDist = dist;
-			}
-		}
-		else if (texNum == 13 && (pw = findPushWall(mapX, mapY))) {
-			/* Secret push wall encountered */
-			if (side == 0) {
-				double dist = sideDistX - deltaDistX * (double)pw->counter / texWidth;
-				if (sideDistY < dist) {
-					hit = 0;
-					goto rayscan;
-				}
-				perpWallDist = dist;
-			}
-			else {
-				double dist = sideDistY - deltaDistY * (double)pw->counter / texWidth;
-				if (sideDistX < dist) {
-					hit = 0;
-					goto rayscan;
-				}
-				perpWallDist = dist;
-			}
-		}
-		else if (texNum == 14 || texNum == 15) {
-			/* Diagonal wall */
-			struct intersect i;
-			double d;
-			if (texNum == 14) {
-				i = wallIntersect(mapX, mapY, mapX + 1, mapY + 1, posX, posY, rayDirX, rayDirY);
-				d = posX - mapX - posY + mapY;
-			}
-			else {
-				i = wallIntersect(mapX, mapY + 1, mapX + 1, mapY, posX, posY, rayDirX, rayDirY);
-				d = mapX - posX - posY + mapY + 1;
-			}
-			if (i.tw < 0.0 || i.tw >= 1.0) {
-				hit = 0;
-				goto rayscan;
-			}
-			perpWallDist = i.tr;
-			wallX = i.tw;
-			if (d < 0) wallX = 1.0 - wallX;
-			diag = true;
-			side = 3;
-		}
-		else {
-			if (side == 0) perpWallDist = (sideDistX - deltaDistX);
-			else          perpWallDist = (sideDistY - deltaDistY);
-		}
 
-		int lineHeight = (int)(h / perpWallDist);
-
-		int drawStart = -lineHeight / 2 + h / 2 + lookVert + eyePos / perpWallDist;
-		int drawEnd = lineHeight / 2 + h / 2 + lookVert + eyePos / perpWallDist;
-
-		if (!diag) {
-			if (side == 0) wallX = posY + perpWallDist * rayDirY;
-			else           wallX = posX + perpWallDist * rayDirX;
-			wallX -= floor((wallX));
-		}
-
-		int texX = int(wallX * double(texWidth));
-
-		if (door) {
-			texX -= texWidth - door->counter;
-			if (texX < 0) {
-				hit = 0;
-				goto rayscan;
-			}
-		}
-
-		if (side == 0 && rayDirX > 0) texX = texWidth - texX - 1;
-		if (side == 1 && rayDirY < 0) texX = texWidth - texX - 1;
+			if (side == 0 && rayDirX > 0) texX = texWidth - texX - 1;
+			if (side == 1 && rayDirY < 0) texX = texWidth - texX - 1;
 
 #if FOG_LEVEL
-		double fog = perpWallDist / FOG_CONSTANT * FOG_LEVEL;
+			double fog = perpWallDist / FOG_CONSTANT * FOG_LEVEL;
+#else
+			double fog = 0.0;
 #endif
 
-		Strip strip = { x, drawStart, drawEnd, perpWallDist, texture[texNum], texX, fog, side,
-		  texNum == 11 || texNum == 12 };
-		stack.push(strip);
+			Strip strip = { x, drawStart, drawEnd, perpWallDist, texture[texNum], texX, fog, side,
+			  texNum == 11 || texNum == 12 };
+			stack.push(strip);
 
-		if (texNum == 9 || texNum == 10 || texNum == 11 || texNum == 12) {
-			hit = 0;
-			goto rayscan;
+			// Transparent walls (glass/entries/gates) should allow rays to continue
+			if (texNum == 9 || texNum == 10 || texNum == 11 || texNum == 12) {
+				hit = 0;
+				continue;
+			}
+
+			// If we arrived here we hit a solid wall and should stop scanning
+			break;
 		}
-
-		int farSprite = spritePrep.size() - 1;
+		
+		// Render sprites and solid walls from back to front
+		int farSprite = spritePrepCount - 1;
 
 		while (farSprite >= 0 && spritePrep[farSprite].transformY > perpWallDist)
 			farSprite--;
