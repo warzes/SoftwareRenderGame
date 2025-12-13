@@ -1,43 +1,7 @@
 #include "stdafx.h"
-#include "Temp.h"
 
-void loadFile(std::vector<unsigned char>& buffer, const std::string& filename) //designed for loading files from hard disk in an std::vector
-{
-	std::ifstream file(filename.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
-
-	//get filesize
-	std::streamsize size = 0;
-	if (file.seekg(0, std::ios::end).good()) size = file.tellg();
-	if (file.seekg(0, std::ios::beg).good()) size -= file.tellg();
-
-	//read contents of the file into the vector
-	buffer.resize(size_t(size));
-	if (size > 0) file.read((char*)(&buffer[0]), size);
-}
-
-//write given buffer to the file, overwriting the file, it doesn't append to it.
-void saveFile(const std::vector<unsigned char>& buffer, const std::string& filename)
-{
-	std::ofstream file(filename.c_str(), std::ios::out | std::ios::binary);
-	file.write(buffer.size() ? (char*)&buffer[0] : 0, std::streamsize(buffer.size()));
-}
-
-int loadImage(std::vector<unsigned>& out, unsigned long& w, unsigned long& h, const std::string& filename)
-{
-	std::vector<unsigned char> file, image;
-	loadFile(file, filename);
-	if (decodePNG(image, w, h, file)) return 1;
-
-	out.resize(image.size() / 4);
-
-	for (size_t i = 0; i < out.size(); i++)
-	{
-		out[i] = 0x1000000 * image[i * 4 + 3] + 0x10000 * image[i * 4 + 0] + 0x100 * image[i * 4 + 1] + image[i * 4 + 2];
-	}
-
-	return 0;
-}
-
+int decodePNG(std::vector<unsigned char>& out_image, unsigned long& image_width, unsigned long& image_height, const unsigned char* in_png, size_t in_size, bool convert_to_rgba32 = true);
+int decodePNG(std::vector<unsigned char>& out_image_32bit, unsigned long& image_width, unsigned long& image_height, const std::vector<unsigned char>& in_png);
 
 int decodePNG(std::vector<unsigned char>& out_image, unsigned long& image_width, unsigned long& image_height, const unsigned char* in_png, size_t in_size, bool convert_to_rgba32)
 {

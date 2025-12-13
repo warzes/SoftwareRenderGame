@@ -15,7 +15,7 @@
     <ClCompile Include="GameApp.cpp">
       <Filter>Game</Filter>
     </ClCompile>
-    <ClCompile Include="Temp.cpp">
+    <ClCompile Include="decodePNG.cpp">
       <Filter>RetroEngine</Filter>
     </ClCompile>
   </ItemGroup>
@@ -29,9 +29,6 @@
     </ClInclude>
     <ClInclude Include="GameApp.h">
       <Filter>Game</Filter>
-    </ClInclude>
-    <ClInclude Include="Temp.h">
-      <Filter>RetroEngine</Filter>
     </ClInclude>
     <ClInclude Include="GameConstant.h">
       <Filter>Game</Filter>

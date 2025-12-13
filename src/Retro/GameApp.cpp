@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "GameApp.h"
 #include "Engine.h"
-#include "Temp.h"
 //=============================================================================
 double posX = 22.0, posY = 11.5; //x and y start position
 double dirX = -1.0, dirY = 0.0; //initial direction vector

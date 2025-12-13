@@ -36,61 +36,63 @@ void Fatal(const std::string& msg)
 	IsExitApp = true;
 }
 //=============================================================================
-unsigned ColorToUInt(const Color& color)
-{
-	return ColorToUInt(color.r, color.g, color.b, color.a);
-}
-//=============================================================================
 unsigned ColorToUInt(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
-	//unsigned rgba = unsigned(r | (g << 8) | (b << 16) | (a << 24));
-	unsigned rgba = unsigned(b | (g << 8) | (r << 16) | (a << 24));
-
-	return rgba;
+	const unsigned bgra = unsigned(b | (g << 8) | (r << 16) | (a << 24));
+	return bgra;
 }
-//=============================================================================
-bool RayIntersect(const Vector2D& rayStart, const Vector2D& rayDir, const Vector2D& wallStart, const Vector2D& wallEnd, float& distance, Vector2D& intersection)
+void GetBGRAFromUInt(unsigned color, uint8_t& r, uint8_t& g, uint8_t& b, uint8_t& a)
 {
-	// Рассчитываем пересечение луча с отрезком стены
-	Vector2D wallVec = wallEnd - wallStart;
-	Vector2D startToRay = rayStart - wallStart;
-
-	float crossProduct = rayDir.x * wallVec.y - rayDir.y * wallVec.x;
-	if (abs(crossProduct) < 0.0001f) return false; // Параллельные линии
-
-	float t = (startToRay.x * wallVec.y - startToRay.y * wallVec.x) / crossProduct;
-	float u = (startToRay.x * rayDir.y - startToRay.y * rayDir.x) / crossProduct;
-
-	if (t >= 0 && u >= 0 && u <= 1)
-	{
-		distance = t;
-		intersection = rayStart + rayDir * t;
-		return true;
-	}
-	return false;
+	b = (color & 0x000000FF);
+	g = (color & 0x0000FF00) >> 8;
+	r = (color & 0x00FF0000) >> 16;
+	a = (color & 0xFF000000) >> 24;
 }
 //=============================================================================
-void MoveCamera(Camera& camera, float dx, float dy, float dz)
-{
-	float rad = DegToRad(camera.angle);
-	camera.position.x += cosf(rad) * dx - sinf(rad) * dy;
-	camera.position.y += sinf(rad) * dx + cosf(rad) * dy;
-	camera.position.z += dz;
-}
-//=============================================================================
-void RotateCamera(Camera& camera, float angleChange)
-{
-	camera.angle += DegToRad(angleChange);
-}
-//=============================================================================
-COLORREF ApplyLighting(COLORREF color, float distance)
+unsigned ApplyLighting(unsigned color, float distance)
 {
 	float factor = std::max(0.1f, 1.0f - distance * 0.01f);
-
-	BYTE r = GetRValue(color) * factor;
-	BYTE g = GetGValue(color) * factor;
-	BYTE b = GetBValue(color) * factor;
-
-	return RGB(r, g, b);
+	uint8_t r, g, b, a;
+	GetBGRAFromUInt(color, r, g, b, a);
+	r = static_cast<uint8_t>(r * factor);
+	g = static_cast<uint8_t>(g * factor);
+	b = static_cast<uint8_t>(b * factor);
+	return ColorToUInt(r, g, b, a);
 }
 //=============================================================================
+void loadFile(std::vector<unsigned char>& buffer, const std::string& filename) //designed for loading files from hard disk in an std::vector
+{
+	std::ifstream file(filename.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
+
+	//get filesize
+	std::streamsize size = 0;
+	if (file.seekg(0, std::ios::end).good()) size = file.tellg();
+	if (file.seekg(0, std::ios::beg).good()) size -= file.tellg();
+
+	//read contents of the file into the vector
+	buffer.resize(size_t(size));
+	if (size > 0) file.read((char*)(&buffer[0]), size);
+}
+
+//write given buffer to the file, overwriting the file, it doesn't append to it.
+void saveFile(const std::vector<unsigned char>& buffer, const std::string& filename)
+{
+	std::ofstream file(filename.c_str(), std::ios::out | std::ios::binary);
+	file.write(buffer.size() ? (char*)&buffer[0] : 0, std::streamsize(buffer.size()));
+}
+
+int loadImage(std::vector<unsigned>& out, unsigned long& w, unsigned long& h, const std::string& filename)
+{
+	std::vector<unsigned char> file, image;
+	loadFile(file, filename);
+	if (decodePNG(image, w, h, file)) return 1;
+
+	out.resize(image.size() / 4);
+
+	for (size_t i = 0; i < out.size(); i++)
+	{
+		out[i] = 0x1000000 * image[i * 4 + 3] + 0x10000 * image[i * 4 + 0] + 0x100 * image[i * 4 + 1] + image[i * 4 + 2];
+	}
+
+	return 0;
+}
