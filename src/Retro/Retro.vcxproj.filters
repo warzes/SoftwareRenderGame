@@ -3,8 +3,14 @@
   <ItemGroup>
     <ClCompile Include="WinMain.cpp" />
     <ClCompile Include="stdafx.cpp" />
-    <ClCompile Include="EngineCore.cpp">
+    <ClCompile Include="Engine.cpp">
       <Filter>RetroEngine</Filter>
+    </ClCompile>
+    <ClCompile Include="GameAppOld2.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="GameAppOld.cpp">
+      <Filter>Game</Filter>
     </ClCompile>
     <ClCompile Include="GameApp.cpp">
       <Filter>Game</Filter>
@@ -15,7 +21,7 @@
     <ClInclude Include="EngineBuild.h">
       <Filter>RetroEngine</Filter>
     </ClInclude>
-    <ClInclude Include="EngineCore.h">
+    <ClInclude Include="Engine.h">
       <Filter>RetroEngine</Filter>
     </ClInclude>
     <ClInclude Include="GameApp.h">

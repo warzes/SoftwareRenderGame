@@ -4,6 +4,7 @@
 
 #if defined(_MSC_VER)
 #	pragma warning(disable : 4514)
+#	pragma warning(disable : 5045)
 #	pragma warning(push, 3)
 #	pragma warning(disable : 4865)
 #	pragma warning(disable : 5039)

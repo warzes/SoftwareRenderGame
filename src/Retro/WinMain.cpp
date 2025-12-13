@@ -1,5 +1,5 @@
 ﻿#include "stdafx.h"
-#include "EngineCore.h"
+#include "Engine.h"
 #if ENABLE_WINAPI
 //=============================================================================
 constexpr const wchar_t* szWindowClass = L"RetroGame_WindowClass";
@@ -12,17 +12,19 @@ HDC g_memDC{ nullptr };
 HBITMAP g_hBitmap{ nullptr };
 BITMAPINFO g_bmi;
 
+
+int g_windowWidth = 1600;
+int g_windowHeight = 900;
 int g_frameWidth = 1600;
 int g_frameHeight = 900;
 unsigned* g_frameBuffer{ nullptr };
 float* g_depthBuffer{ nullptr };
-uint8_t* g_stencilBuffer{ nullptr };
 
-WPARAM g_lastKey = 0;
 LPARAM g_lastMousePos = 0;
 WPARAM g_lastMouseButtons = 0;
-BOOL g_keyPressed = FALSE;
 BOOL g_mouseMoved = FALSE;
+
+bool keys[256] = { false };
 //=============================================================================
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) noexcept
 {
@@ -42,8 +44,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	case WM_SIZE:
 		if (wParam != SIZE_MINIMIZED)
 		{
-			g_frameWidth = LOWORD(lParam);
-			g_frameHeight = HIWORD(lParam);
+			g_windowWidth = LOWORD(lParam);
+			g_windowHeight = HIWORD(lParam);
+
+			float aspectRatio = (float)g_windowWidth / (float)g_windowHeight;
+
+			g_frameWidth = 480 * aspectRatio;
+			g_frameHeight = 480;
 
 			g_bmi.bmiHeader.biWidth = g_frameWidth;
 			g_bmi.bmiHeader.biHeight = -g_frameHeight;
@@ -55,21 +62,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 				SelectObject(g_memDC, g_hBitmap);
 
 				// Пересоздаем буферы
-				if (g_frameBuffer) free(g_frameBuffer);
-				if (g_depthBuffer) free(g_depthBuffer);
-				if (g_stencilBuffer) free(g_stencilBuffer);
+				if (g_frameBuffer) delete[] g_frameBuffer;
+				if (g_depthBuffer) delete[] g_depthBuffer;
 
-				g_frameBuffer = (unsigned*)malloc(g_frameWidth * g_frameHeight * sizeof(unsigned));
-				g_depthBuffer = (float*)malloc(g_frameWidth * g_frameHeight * sizeof(float));
-				g_stencilBuffer = (uint8_t*)malloc(g_frameWidth * g_frameHeight * sizeof(uint8_t));
+				g_frameBuffer = new unsigned[g_frameWidth * g_frameHeight];
+				g_depthBuffer = new float[g_frameWidth * g_frameHeight];
 			}
 		}
 		return 0;
 	case WM_KEYDOWN:
+		keys[wParam] = true;
+		return 0;
 	case WM_KEYUP:
-		g_lastKey = wParam;
-		g_keyPressed = (message == WM_KEYDOWN);
-		break;
+		keys[wParam] = false;
+		return 0;
 	case WM_LBUTTONDOWN:
 	case WM_LBUTTONUP:
 	case WM_RBUTTONDOWN:
@@ -114,7 +120,7 @@ bool CreateMainWindow(HINSTANCE hInstance)
 	MyRegisterClass(hInstance);
 
 	DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
-	RECT rect = { 0, 0, g_frameWidth, g_frameHeight };
+	RECT rect = { 0, 0, g_windowWidth, g_windowHeight };
 	AdjustWindowRect(&rect, style, FALSE);
 
 	g_hwnd = CreateWindowEx(
@@ -125,6 +131,11 @@ bool CreateMainWindow(HINSTANCE hInstance)
 	{
 		return false;
 	}
+
+	float aspectRatio = (float)g_windowWidth / (float)g_windowHeight;
+
+	g_frameWidth = 480 * aspectRatio;
+	g_frameHeight = 480;
 
 	g_hdc = GetDC(g_hwnd);
 	g_memDC = CreateCompatibleDC(g_hdc);
@@ -153,21 +164,21 @@ bool CreateMainWindow(HINSTANCE hInstance)
 //=============================================================================
 void winAPIPresent()
 {
-	SetDIBitsToDevice(
-		g_memDC,
-		0, 0, (DWORD)g_frameWidth, (DWORD)g_frameHeight,
-		0, 0, 0, (UINT)g_frameHeight,
-		g_frameBuffer,
-		&g_bmi,
-		DIB_RGB_COLORS
-	);
+	//SetDIBitsToDevice(
+	//	g_memDC,
+	//	0, 0, (DWORD)g_frameWidth, (DWORD)g_frameHeight,
+	//	0, 0, 0, (UINT)g_frameHeight,
+	//	g_frameBuffer,
+	//	&g_bmi,
+	//	DIB_RGB_COLORS
+	//);
 
-	BitBlt(g_hdc, 0, 0, g_frameWidth, g_frameHeight, g_memDC, 0, 0, SRCCOPY);
-}
-//=============================================================================
-WPARAM winAPIGetLastKey()
-{
-	return g_lastKey;
+	//BitBlt(g_hdc, 0, 0, g_frameWidth, g_frameHeight, g_memDC, 0, 0, SRCCOPY);
+
+	StretchDIBits(g_hdc, 
+		10, 10, g_windowWidth - 20, g_windowHeight-20, 
+		0, 0, g_frameWidth, g_frameHeight, 
+		g_frameBuffer, &g_bmi, DIB_RGB_COLORS, SRCCOPY);
 }
 //=============================================================================
 LPARAM winAPIGetLastMousePos()
@@ -180,11 +191,6 @@ WPARAM winAPIGetLastMouseButtons()
 	return g_lastMouseButtons;
 }
 //=============================================================================
-BOOL winAPIWasKeyPressed()
-{
-	return g_keyPressed;
-}
-//=============================================================================
 BOOL winAPIWasMouseMoved()
 {
 	return g_mouseMoved;
@@ -192,17 +198,7 @@ BOOL winAPIWasMouseMoved()
 //=============================================================================
 void winAPIClearInputState()
 {
-	g_keyPressed = FALSE;
 	g_mouseMoved = FALSE;
-}
-//=============================================================================
-uint16_t winAPIGetNextKey()
-{
-	if (g_keyPressed) {
-		g_keyPressed = FALSE; // сброс после получения
-		return (uint16_t)g_lastKey;
-	}
-	return 0; // нет нажатий
 }
 //=============================================================================
 void winAPINextMouseDelta(double* deltaX, double* deltaY)
@@ -251,9 +247,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	if (!CreateMainWindow(hInstance))
 		return 0;
 
-	g_frameBuffer = (unsigned*)malloc(g_frameWidth * g_frameHeight * sizeof(unsigned));
-	g_depthBuffer = (float*)malloc(g_frameWidth * g_frameHeight * sizeof(float));
-	g_stencilBuffer = (uint8_t*)malloc(g_frameWidth * g_frameHeight * sizeof(uint8_t));
+	g_frameBuffer = new unsigned[g_frameWidth * g_frameHeight];
+	g_depthBuffer = new float[g_frameWidth * g_frameHeight];
 
 	if (!InitGame())
 		return 0;
@@ -276,33 +271,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		else
 		{
 			FrameGame();
-
-			int r = 128;
-			int g = 78;
-			int b = 200;
-			int a = 255;
-			unsigned rgba = r | (g << 8) | (b << 16) | (a << 24);
-			for (int y = 0; y < g_frameHeight; y++)
-			{
-				const int k = y * g_frameWidth;
-				for (int x = 0; x < g_frameWidth; x++)
-					g_frameBuffer[x + k] = rgba;
-			}
-
 			winAPIPresent();
-
-			if (winAPIGetNextKey() == 27)
-				IsExitApp = true;
-
-			//Sleep(16); // ~60 FPS
+			Sleep(16); // ~60 FPS
 		}
 	}
 
 	CloseGame();
 
-	if (g_frameBuffer) free(g_frameBuffer);
-	if (g_depthBuffer) free(g_depthBuffer);
-	if (g_stencilBuffer) free(g_stencilBuffer);
+	if (g_frameBuffer) delete[] g_frameBuffer;
+	if (g_depthBuffer) delete[] g_depthBuffer;
 
 	if (g_hBitmap) DeleteObject(g_hBitmap);
 	if (g_memDC)   DeleteDC(g_memDC);
