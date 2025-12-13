@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <fstream>
 #include <string>
+#include <stack>
 #include <vector>
 
 #if defined(_MSC_VER)
