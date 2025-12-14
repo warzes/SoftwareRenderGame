@@ -483,6 +483,12 @@ intersect wallIntersect(double W0x, double W0y, double W1x, double W1y, double P
 	return i;
 }
 
+// Default wall height (1.0 = standard height)
+double wallHeights[mapWidth][mapHeight];
+
+// Wall types for each map tile
+int wallTypes[mapWidth][mapHeight];
+
 //=============================================================================
 bool InitGame()
 {
@@ -559,6 +565,8 @@ void FrameGame()
 		g_depthBuffer[i] = 10000.0f; // Бесконечность
 	}
 
+	// TODO: когда сделаю z-буффер, то возможно изменить порядок отрисовки: - сначала стены, потом пол/потолок, потом скайбокс
+
 	// Draw skybox and ceiling/floor via helper functions
 #if SKYBOX
 	RenderSkybox(g_frameWidth, g_frameHeight);
@@ -566,10 +574,7 @@ void FrameGame()
 
 	// Render floor and ceiling by helper functions
 	RenderFloor(g_frameWidth, g_frameHeight);
-
-//#if !SKYBOX
 	RenderCeiling(g_frameWidth, g_frameHeight);
-//#endif
 
 	prepareSprites();
 
